@@ -1,7 +1,5 @@
 # commandbox-cicd-templates
-
-## Generate CI/CD templates for deploying your CFML application to the cloud
-_Coming soon._
+Generate infrastructure-as-code files for deploying CFML application to your favorite cloud platforms.
 
 ## Package Installation
 
@@ -10,4 +8,9 @@ You will need [CommandBox](https://www.ortussolutions.com/products/commandbox) i
 From within the terminal, simply run the following command to install the module.
 ```
 $ box install commandbox-cicd-templates
+```
+
+## Usage 
+```
+$ box cicd generate
 ```
