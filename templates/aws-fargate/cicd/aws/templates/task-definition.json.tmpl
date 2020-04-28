@@ -1,0 +1,33 @@
+{
+    "executionRoleArn": "CICDTEMPLATE_TASK_EXECUTION_ROLE_ARN",
+    "containerDefinitions": [
+        {
+            "name": "@@CICDTEMPLATE_PROJECT_PREFIX@@",
+            "image": "<IMAGE1_NAME>",
+            "essential": true,
+            "portMappings": [
+                {
+                    "hostPort": 8080,
+                    "protocol": "tcp",
+                    "containerPort": 8080
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                  "awslogs-create-group": "true",
+                  "awslogs-group": "/ecs/@@CICDTEMPLATE_PROJECT_PREFIX@@",
+                  "awslogs-region": "CICDTEMPLATE_AWS_REGION",
+                  "awslogs-stream-prefix": "ecs"
+                }
+            }
+        }
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "networkMode": "awsvpc",
+    "cpu": "512",
+    "memory": "1024",
+    "family": "@@CICDTEMPLATE_PROJECT_PREFIX@@"
+}

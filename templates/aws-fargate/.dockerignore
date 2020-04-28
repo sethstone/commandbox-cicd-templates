@@ -1,0 +1,11 @@
+cicd
+.dockerignore
+README.md
+.cfformat.json
+.cflintrc
+.editorconfig
+.env.example
+.git
+.gitattributes
+.gitignore
+server.json

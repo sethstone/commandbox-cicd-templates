@@ -1,0 +1,362 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: Application Load Balancer, ECR Repository, Fargate cluster, Task Definition and ECS Service.
+
+Parameters:
+  ProjectPrefix:
+    Description: Default prefix to use when creating resources
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@
+
+  ECRRepoName:
+    Description: An ECR repository that contains the Docker images build by CodeBuild and deployed to ECS
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@
+
+  LambdaDeleteECRRepoFunctionName: 
+    Description: Name of Lambda function used to trigger a forced delete of an ECR repo (even when images exists)
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-lambda-DeleteECRRepo
+
+Resources:
+  ######################################################################################################################
+  ### Application Load Balancer and Target Groups for Blue/Green Deployment
+  ### See also: https://github.com/aws-samples/ecs-blue-green-deployment/tree/fargate
+  ######################################################################################################################
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${ProjectPrefix}-alb-sg
+      GroupDescription: !Sub Permits Internet traffic to the ${ProjectPrefix}-alb load balancer.
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: TCP
+          FromPort: 80
+          ToPort: 80
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: TCP
+          FromPort: 8080
+          ToPort: 8080
+      VpcId:
+        Fn::ImportValue: !Sub ${ProjectPrefix}-network-VPC
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${ProjectPrefix}-alb
+      Scheme: internet-facing
+      Subnets:
+        - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetOne
+        - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetTwo
+        - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetThree
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+
+  TargetGroup1:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectPrefix}-tg1
+      Protocol: HTTP
+      Port: 8080
+      TargetType: ip
+      # HealthCheckPath: /health.cfm
+      UnhealthyThresholdCount: 3
+      HealthCheckTimeoutSeconds: 10
+      HealthCheckIntervalSeconds: 45
+      VpcId:
+        Fn::ImportValue: !Sub ${ProjectPrefix}-network-VPC
+
+  TargetGroup2:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${ProjectPrefix}-tg2
+      Protocol: HTTP
+      Port: 8080
+      TargetType: ip
+      # HealthCheckPath: /health.cfm
+      UnhealthyThresholdCount: 3
+      HealthCheckTimeoutSeconds: 10
+      HealthCheckIntervalSeconds: 45
+      VpcId:
+        Fn::ImportValue: !Sub ${ProjectPrefix}-network-VPC
+
+  ProductionListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - TargetGroup1
+      - TargetGroup2
+    Properties:
+      DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups: 
+              - TargetGroupArn: !Ref TargetGroup1
+      LoadBalancerArn: !Ref LoadBalancer
+      Protocol: HTTP
+      Port: 80
+
+  TestListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - TargetGroup1
+      - TargetGroup2
+    Properties:
+      DefaultActions:
+        - Type: forward
+          ForwardConfig:
+            TargetGroups: 
+              - TargetGroupArn: !Ref TargetGroup2
+      LoadBalancerArn: !Ref LoadBalancer
+      Protocol: HTTP
+      Port: 8080
+
+  ######################################################################################################################
+  ### ECR Repo, ECS Cluster, Task Definition and Service
+  ######################################################################################################################
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: !Ref ECRRepoName
+
+  CustomDeleteECRRepoOnDelete:
+    Type: Custom::DeleteECRRepo
+    Properties:
+      ServiceToken: !GetAtt DeleteECRRepoLambda.Arn
+      RegistryId: !Ref AWS::AccountId
+      RepositoryName: !Ref ECRRepository
+
+  DeleteECRRepoLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: ECRRepository
+    Properties:
+      Description: Lambda Function to force delete of ECR repo even when images exist
+      FunctionName: !Ref LambdaDeleteECRRepoFunctionName
+      Handler: index.lambda_handler
+      Role: !GetAtt DeleteECRRepoLambdaRole.Arn
+      Runtime: python2.7
+      Timeout: 60
+      Code:
+        ZipFile: !Sub |
+          #!/usr/bin/env python
+          # -*- coding: utf-8 -*-
+
+          import json
+          import boto3
+          import urllib3
+
+          def lambda_handler(event, context):
+              try:
+                  registryId = event['ResourceProperties']['RegistryId']
+                  repositoryName = event['ResourceProperties']['RepositoryName']
+
+                  if event['RequestType'] == 'Delete':
+                    ecr = boto3.client('ecr')
+                    response = ecr.delete_repository(registryId=registryId,repositoryName=repositoryName,force=True)
+
+                  sendResponseCfn(event, context, "SUCCESS")
+              except Exception as e:
+                  print(e)
+                  sendResponseCfn(event, context, "FAILED")
+
+          def sendResponseCfn(event, context, responseStatus):
+              response_body = {
+                                'Status': responseStatus,
+                                'Reason': 'Log stream name: ' + context.log_stream_name,
+                                'PhysicalResourceId': context.log_stream_name,
+                                'StackId': event['StackId'],
+                                'RequestId': event['RequestId'],
+                                'LogicalResourceId': event['LogicalResourceId'],
+                                'Data': json.loads("{}")
+                              }
+
+              http = urllib3.PoolManager()
+              http.request('PUT',
+                  event['ResponseURL'],
+                  body = json.dumps(response_body),
+                  headers = {'Content-Type': 'application/json'},
+                  retries = False
+              )
+      
+  DeleteECRRepoLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub lambda-${ProjectPrefix}-DeleteECRRepo-execution-role
+      Description: !Sub Execution role to allow Lambda function to force delete ECR Repo
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: !Sub ${LambdaDeleteECRRepoFunctionName}-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - ecr:DeleteRepository
+            Resource: !GetAtt ECRRepository.Arn
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource:
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${LambdaDeleteECRRepoFunctionName}
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${LambdaDeleteECRRepoFunctionName}:*
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties: 
+      ClusterName: !Sub ${AWS::StackName}-fargate-cluster
+
+  ContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: LoadBalancerSecurityGroup
+    Properties:
+      GroupName: !Sub ${ProjectPrefix}-containers-sg
+      GroupDescription: Permits traffic from the ALB to the containers.
+      SecurityGroupIngress: 
+        - SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+          IpProtocol: TCP
+          FromPort: 8080
+          ToPort: 8080
+      VpcId:
+        Fn::ImportValue: !Sub ${ProjectPrefix}-network-VPC
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ecstasks-${ProjectPrefix}-${AWS::Region}-execution-role
+      Description: !Sub IAM role applied to containers running in the ${ProjectPrefix}-service service.
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              - ecs-tasks.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+      - PolicyName: taskexec-additional-permissions-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            Resource:
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/*
+
+  TaskDefinition: 
+    Type: AWS::ECS::TaskDefinition
+    Properties: 
+      RequiresCompatibilities:
+        - FARGATE
+      ContainerDefinitions: 
+        - Name: !Sub ${ProjectPrefix}
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepoName}
+          PortMappings: 
+            - ContainerPort: 8080
+              Protocol: TCP
+              HostPort: 8080
+          Essential: true
+          LogConfiguration:
+              LogDriver: awslogs
+              Options:
+                awslogs-create-group: true
+                awslogs-group: !Sub /ecs/${ProjectPrefix}
+                awslogs-region: !Ref AWS::Region
+                awslogs-stream-prefix: ecs
+      Family: !Ref ProjectPrefix
+      NetworkMode: awsvpc
+      Memory: 1024
+      Cpu: 512
+      ExecutionRoleArn: !Ref ECSTaskExecutionRole
+      
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - LoadBalancer
+      - ProductionListener
+      - TaskDefinition
+    Properties:
+      ServiceName: !Sub ${ProjectPrefix}-service
+      Cluster: !Ref ECSCluster
+      LaunchType: FARGATE
+      DesiredCount: 0
+      DeploymentController:
+        Type: CODE_DEPLOY
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ContainerSecurityGroup
+          Subnets:
+            - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetOne
+            - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetTwo
+            - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetThree
+      TaskDefinition: !Ref TaskDefinition
+      LoadBalancers:
+        - ContainerName: !Ref ProjectPrefix
+          ContainerPort: 8080
+          TargetGroupArn:
+            !Ref TargetGroup1
+
+Outputs:
+  ECRRepoName:
+    Description: The name of the ECR repository for the application image
+    Value: !Ref ECRRepository
+    Export:
+      Name: !Sub ${AWS::StackName}:ECRRepoName
+  ECSCluster:
+    Description: ECS cluster ARN
+    Value: !GetAtt ECSCluster.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}:ECSCluster
+  ClusterName:
+    Description: The name of the ECS cluster
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub ${AWS::StackName}:ClusterName
+  TaskExecutionRole:
+    Description: The ARN of the Task Execution Role
+    Value: !GetAtt ECSTaskExecutionRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}:TaskExecutionRole
+  ServiceName:
+    Description: The name of the ECS service
+    Value: !GetAtt ECSService.Name
+    Export:
+      Name: !Sub ${AWS::StackName}:ServiceName
+  LoadBalancerDNSName:
+    Description: The DNS Name for the load balancer
+    Value: !GetAtt LoadBalancer.DNSName
+    Export:
+      Name: !Sub ${AWS::StackName}:LoadBalancerDNSName
+  TargetGroup1Name:
+    Description: The name of Target Group 1
+    Value: !GetAtt TargetGroup1.TargetGroupName
+    Export:
+      Name: !Sub ${AWS::StackName}:TargetGroup1Name
+  TargetGroup2Name:
+    Description: The name of Target Group 2
+    Value: !GetAtt TargetGroup2.TargetGroupName
+    Export:
+      Name: !Sub ${AWS::StackName}:TargetGroup2Name
+  ALBProductionListener:
+    Description: Production Listener ARN
+    Value: !Ref ProductionListener
+    Export:
+      Name: !Sub ${AWS::StackName}:ALBProductionListener
+  ALBTestListener:
+    Description: Test Listener ARN
+    Value: !Ref TestListener
+    Export:
+      Name: !Sub ${AWS::StackName}:ALBTestListener

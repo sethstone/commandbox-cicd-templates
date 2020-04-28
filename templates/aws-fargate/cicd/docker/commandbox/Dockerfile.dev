@@ -1,0 +1,13 @@
+FROM ortussolutions/commandbox
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y \
+    net-tools \
+    tzdata \
+    vim \
+ && rm -rf /var/lib/apt/lists/*
+# Warm up the server with a specific version of CF Engine version. To see which
+# versions are available on Forgebox run:
+#   box forgebox search "Lucee CF Engine"
+ENV CFENGINE=lucee@5.3.4+80
+#COPY ./cicd/docker/lucee/CFConfig.json /root
+#ENV cfconfigfile=/root/CFConfig.json
+RUN ${BUILD_DIR}/util/warmup-server.sh

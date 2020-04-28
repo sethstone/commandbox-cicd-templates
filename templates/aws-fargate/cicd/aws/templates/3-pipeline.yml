@@ -1,0 +1,474 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: CodeCommit Repo, CI/CD Pipeline
+
+Parameters:
+  ProjectPrefix:
+    Description: Default prefix to use when creating resources
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@
+
+  CodeCommitRepoName:
+    Description: A CodeCommit repository that contains the application code (Must be in same region as this stack)
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@
+
+  LambdaCleanupOnDeleteFunctionName: 
+    Description: Name of Lambda function used to trigger a cleanup when Delete is called on an S3 bucket
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-lambda-cleanupbucket
+
+  CodeBuildProjectName:
+    Description: Name of the CodeBuild project that builds the Docker image
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-image
+
+  CodeDeployApplicationName:
+    Description: Name of the CodeDeploy application
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-codedeploy-app
+
+  CodeDeployDeploymentGroupName:
+    Description: Name of the CodeDeploy deployment group
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-codedeploy-app-dg
+
+  CodePipelineName:
+    Description: Name of the CodePipeline application
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-pipeline
+
+Resources:
+  CodeCommitRepo:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Ref CodeCommitRepoName
+      #RepositoryDescription: 
+
+  CodePipelineArtifactsS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+      - Key: Name
+        Value: !Sub ${ProjectPrefix}-codepipeline-artifacts
+
+  CodePipelineArtifactsS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref CodePipelineArtifactsS3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: SSEAndSSLPolicy
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}/*
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption: aws:kms
+            Sid: DenyUnEncryptedObjectUploads
+          - Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+            Sid: DenyInsecureConnections
+
+  CustomCleanupBucketOnDelete:
+    Type: Custom::cleanupbucket
+    DependsOn: CleanupBucketOnDeleteLambda
+    Properties:
+      ServiceToken: !GetAtt CleanupBucketOnDeleteLambda.Arn
+      BucketName: !Ref CodePipelineArtifactsS3Bucket
+
+  CleanupBucketOnDeleteLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: CodePipelineArtifactsS3Bucket
+    Properties:
+      Description: Lambda Function to Empty S3 Bucket upon Delete
+      FunctionName: !Ref LambdaCleanupOnDeleteFunctionName
+      Handler: index.lambda_handler
+      Role: !GetAtt CleanupBucketOnDeleteLambdaRole.Arn
+      Runtime: python2.7
+      Timeout: 60
+      Code:
+        ZipFile: !Sub |
+          #!/usr/bin/env python
+          # -*- coding: utf-8 -*-
+
+          import json
+          import boto3
+          import urllib3
+
+          def lambda_handler(event, context):
+              try:
+                  bucket = event['ResourceProperties']['BucketName']
+
+                  if event['RequestType'] == 'Delete':
+                      s3 = boto3.resource('s3')
+                      bucket = s3.Bucket(bucket)
+                      for obj in bucket.objects.filter():
+                          s3.Object(bucket.name, obj.key).delete()
+
+                  sendResponseCfn(event, context, "SUCCESS")
+              except Exception as e:
+                  print(e)
+                  sendResponseCfn(event, context, "FAILED")
+
+          def sendResponseCfn(event, context, responseStatus):
+              response_body = {
+                                'Status': responseStatus,
+                                'Reason': 'Log stream name: ' + context.log_stream_name,
+                                'PhysicalResourceId': context.log_stream_name,
+                                'StackId': event['StackId'],
+                                'RequestId': event['RequestId'],
+                                'LogicalResourceId': event['LogicalResourceId'],
+                                'Data': json.loads("{}")
+                              }
+
+              http = urllib3.PoolManager()
+              http.request('PUT',
+                  event['ResponseURL'],
+                  body = json.dumps(response_body),
+                  headers = {'Content-Type': 'application/json'},
+                  retries = False
+              )
+      
+  CleanupBucketOnDeleteLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub lambda-${ProjectPrefix}-CleanupBucketOnDelete-execution-role
+      Description: !Sub Execution role to allow Lambda function to empty the artifact bucket
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: !Sub ${LambdaCleanupOnDeleteFunctionName}-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:ListBucket
+            - s3:DeleteObject
+            Resource:
+            - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}
+            - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}/*
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource:
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${LambdaCleanupOnDeleteFunctionName}
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${LambdaCleanupOnDeleteFunctionName}:*
+
+  CloudWatchSourceEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub cloudwatch-${ProjectPrefix}-source-event-${AWS::Region}-service-role
+      Description: Role for CloudWatch source events to trigger AWS codePipeline execution
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - codepipeline:StartPipelineExecution
+            Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${CodePipelineName}
+        PolicyName: !Sub cloudwatch-${ProjectPrefix}-source-event-policy
+
+  CloudWatchSourceEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Amazon CloudWatch Events to detect changes to the source repository and trigger pipeline execution
+      EventPattern:
+        detail:
+          event:
+          - referenceCreated
+          - referenceUpdated
+          referenceName:
+          - master
+          referenceType:
+          - branch
+        detail-type:
+        - CodeCommit Repository State Change
+        resources:
+        - !GetAtt CodeCommitRepo.Arn
+        source:
+        - aws.codecommit
+      Name: !Sub ${ProjectPrefix}-source-event
+      State: ENABLED
+      Targets:
+      - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${CodePipelineName}
+        Id: ProjectPipelineTarget
+        RoleArn: !GetAtt CloudWatchSourceEventRole.Arn
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub codebuild-${CodeBuildProjectName}-${AWS::Region}-service-role
+      Description: !Sub Role for CodeBuild project ${CodeBuildProjectName} to access S3 artifacts, ECR, CloudWatch
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
+      Policies:
+      - PolicyName: !Sub codebuild-${CodeBuildProjectName}-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:GetObjectVersion
+            Resource:
+            - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}
+            - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}/*
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource:
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CodeBuildProjectName}
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CodeBuildProjectName}:*
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    DependsOn:
+    - CodeBuildServiceRole
+    Properties:
+      Description: !Sub CodeBuild project for ${ProjectPrefix} image build
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:3.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+        EnvironmentVariables:
+        - Name: AWS_ACCOUNT_ID
+          Value: !Ref AWS::AccountId
+        - Name: AWS_REGION
+          Value: !Ref AWS::Region
+        - Name: ECR_REPO_NAME
+          Value:
+            Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:ECRRepoName
+        - Name: TASKEXEC_ROLE
+          Value: 
+            Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:TaskExecutionRole
+      Name: !Ref CodeBuildProjectName
+      ServiceRole: !Ref CodeBuildServiceRole
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: cicd/aws/templates/buildspec.yml
+      SourceVersion: master
+ 
+  CodeDeployServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub codedeploy-${CodeDeployApplicationName}-${AWS::Region}-service-role
+      Description: !Sub Role for CodeDeploy application ${CodeDeployApplicationName} to access ECS, ALB and S3
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
+
+  CodeDeployApplication:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: !Ref CodeDeployApplicationName
+      ComputePlatform: ECS
+ 
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub codepipeline-${CodePipelineName}-${AWS::Region}-service-role
+      Description: !Sub Role for CodePipeline application ${CodePipelineName} to access S3, CodeCommit and CodeBuild
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies: 
+      - PolicyName: !Sub codepipeline-${CodePipelineName}-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            - s3:GetObjectVersion
+            - s3:PutObject
+            Resource:
+            - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}
+            - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}/*
+          - Effect: Allow
+            Action:
+            - codecommit:CancelUploadArchive
+            - codecommit:GetBranch
+            - codecommit:GetCommit
+            - codecommit:GetUploadArchiveStatus
+            - codecommit:UploadArchive
+            Resource: !GetAtt CodeCommitRepo.Arn
+          - Effect: Allow
+            Action:
+            - codebuild:StartBuild
+            - codebuild:BatchGetBuilds
+            - codebuild:StopBuild
+            Resource: !GetAtt CodeBuildProject.Arn
+          - Effect: Allow
+            Action:
+            - codedeploy:GetApplication
+            - codedeploy:GetApplicationRevision
+            - codedeploy:RegisterApplicationRevision
+            Resource: !Sub arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${CodeDeployApplication}
+          - Effect: Allow
+            Action:
+            - codedeploy:ContinueDeployment
+            - codedeploy:CreateDeployment
+            - codedeploy:GetDeployment
+            Resource: !Sub arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${CodeDeployApplication}/*
+          - Effect: Allow
+            Action:
+            - codedeploy:GetDeploymentConfig
+            Resource: !Sub arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:CodeDeployDefault.ECSAllAtOnce
+          - Effect: Allow
+            Action:
+            - ecs:RegisterTaskDefinition
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource:
+            - Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:TaskExecutionRole
+
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    DependsOn:
+    - CodePipelineServiceRole
+    - CodePipelineArtifactsS3Bucket
+    - CodeBuildProject
+    Properties:
+      ArtifactStore:
+        Location: !Ref CodePipelineArtifactsS3Bucket
+        Type: S3
+      Name: !Ref CodePipelineName
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      Stages:
+      - Name: Source
+        Actions:
+        - ActionTypeId:
+            Category: Source
+            Owner: AWS
+            Provider: CodeCommit
+            Version: 1
+          Configuration:
+            BranchName: master
+            PollForSourceChanges: false
+            RepositoryName: !GetAtt CodeCommitRepo.Name
+          Name: ApplicationSource
+          OutputArtifacts:
+          - Name: !Sub ${ProjectPrefix}-SourceArtifact
+          RunOrder: 1
+      - Name: Build
+        Actions:
+        - ActionTypeId:
+            Category: Build
+            Owner: AWS
+            Provider: CodeBuild
+            Version: 1
+          Configuration:
+            ProjectName: !Ref CodeBuildProjectName
+          InputArtifacts:
+          - Name: !Sub ${ProjectPrefix}-SourceArtifact
+          Name: BuildImage
+          OutputArtifacts:
+          - Name: !Sub ${ProjectPrefix}-BuildArtifact
+          RunOrder: 1
+      # The Deploy phase is added to the pipeline here, but the deployment group isn't actually built until a future step.
+      - Name: Deploy
+        Actions:
+        - ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Provider: CodeDeployToECS
+            Version: 1
+          Configuration:
+            ApplicationName: !Ref CodeDeployApplication
+            DeploymentGroupName: !Ref CodeDeployDeploymentGroupName
+            TaskDefinitionTemplateArtifact: !Sub ${ProjectPrefix}-BuildArtifact
+            TaskDefinitionTemplatePath: task-definition.json
+            AppSpecTemplateArtifact: !Sub ${ProjectPrefix}-BuildArtifact
+            AppSpecTemplatePath: appspec.yml
+            Image1ArtifactName: !Sub ${ProjectPrefix}-BuildArtifact
+            Image1ContainerName: IMAGE1_NAME
+          InputArtifacts:
+          - Name: !Sub ${ProjectPrefix}-BuildArtifact
+          Name: ECS-BlueGreenDeploy
+          RunOrder: 1
+
+Outputs:
+  CodeDeployApplicationName:
+    Description: CodeDeploy Application Name
+    Value: !Ref CodeDeployApplication
+    Export:
+      Name: !Sub ${AWS::StackName}:CodeDeployApplicationName
+  CodeDeployDeploymentGroupName:
+    Description: CodeDeploy Deployment Group Name
+    Value: !Ref CodeDeployDeploymentGroupName
+    Export:
+      Name: !Sub ${AWS::StackName}:CodeDeployDeploymentGroupName
+  CodeDeployServiceRole:
+    Description: CodeDeploy Service Role
+    Value: !GetAtt CodeDeployServiceRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}:CodeDeployServiceRole
+  CloneUrlHttp:
+    Description: URL for cloning repository via HTTPS
+    Value: !GetAtt CodeCommitRepo.CloneUrlHttp
+    Export:
+      Name: !Sub ${AWS::StackName}:CloneUrlHttp
+  CloneUrlSsh:
+    Description: URL for cloning repository via SSH
+    Value: !GetAtt CodeCommitRepo.CloneUrlSsh
+    Export:
+      Name: !Sub ${AWS::StackName}:CloneUrlSsh

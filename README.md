@@ -1,6 +1,6 @@
 # commandbox-cicd-templates
 
-## Generate CI/CD deployment templates for deploying your CFML application to the cloud
+## Generate CI/CD templates for deploying your CFML application to the cloud
 _Coming soon._
 
 ## Package Installation
