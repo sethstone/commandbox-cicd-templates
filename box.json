@@ -1,13 +1,13 @@
 {
     "author":"Seth Stone <seth@initzero.net>",
-    "bugs":"",
+    "bugs":"https://github.com/sethstone/commandbox-cicd-templates/issues",
     "changelog":"",
     "contributors":[],
     "dependencies":{},
     "description":"",
     "devDependencies":{},
-    "documentation":"",
-    "homepage":"",
+    "documentation":"https://github.com/sethstone/commandbox-cicd-templates",
+    "homepage":"https://github.com/sethstone/commandbox-cicd-templates",
     "ignore":[
         "**/.*",
         "/test/",
@@ -18,41 +18,25 @@
     "keywords":[],
     "license":[
         {
-            "type":"",
-            "URL":""
+            "type":"MIT",
+            "URL":"https://github.com/sethstone/commandbox-cicd-templates/blob/master/LICENSE"
         }
     ],
-    "location":"ForgeboxStorage",
-    "name":"cicd-templates Command",
+    "location":"sethstone/commandbox-cicd-templates#v0.1.0",
+    "name":"CommandBox CI/CD Templates",
     "private":false,
     "projectURL":"",
     "repository":{
-        "type":"",
-        "URL":""
+        "type":"git",
+        "URL":"https://github.com/sethstone/commandbox-cicd-templates"
     },
-    "scripts":{},
-    "shortDescription":"",
+    "scripts":{
+        "postVersion":"package set location='sethstone/commandbox-cicd-templates#v`package version`'",
+        "onRelease":"publish",
+        "postPublish":"!git push && git push --tags"
+    },
+    "shortDescription":"Generate infrastructure-as-code files for your target cloud platform.",
     "slug":"commandbox-cicd-templates",
-    "testbox":{
-        "bundles":"",
-        "directory":"tests.specs",
-        "excludes":"",
-        "labels":"",
-        "options":{},
-        "recurse":true,
-        "reporter":"",
-        "runner":[
-            {
-                "default":""
-            }
-        ],
-        "testBundles":"",
-        "testSpecs":"",
-        "testSuites":"",
-        "verbose":true,
-        "watchDelay":500,
-        "watchPaths":"**.cfc"
-    },
     "type":"commandbox-modules",
-    "version":"0.0.0"
+    "version":"0.1.0"
 }
