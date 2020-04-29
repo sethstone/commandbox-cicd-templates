@@ -28,22 +28,30 @@ component {
   }
   
   /**
-   * @template.hint Cloud template to generate or press Enter for list
+   * @template.hint Cloud template to generate
    */
-  public void function run( required string template ){
+  public void function run( string template ){
     var projectDirectory = '';
     var projectPrefix = '';
+    var template = '';
 
-    // show list of tempaates
+    if ( arguments.keyExists('template') && arguments.template.len() > 0 ) {
+      template = arguments.template;
+    }
+    else {
+      template = ask( message='Cloud template (or press Enter for list): ' );
+    }
+
+    // show list of tempalates
     if ( template.len() < 1 ) {
       print.line().cyanLine( 'The following templates are available ... ' ).line();
       for (var t in variables.templateMap) {
-        print.cyan( '   * ').white(t).cyanLine(': .......  #variables.templateMap[t].description#' );
+        print.cyan( '   * ').white(t).cyanLine(': ' & (t.len()<25 ? RepeatString('.',25-t.len()) : '') & ' '  & variables.templateMap[t].description );
       }
       print.line();
     }
  		// Run the template setup if this is a known template
-		else if ( variables.templateMap.keyExists( arguments.template ) ) {
+		else if ( variables.templateMap.keyExists( template ) ) {
       // Confirm install location
       projectDirectory = ask(
         message='Project directory: ',
@@ -55,8 +63,8 @@ component {
        );
 
       // Generate template based on 'template' parameter
-      Invoke( variables, variables.templateMap[arguments.template].handler, {
-          'settings': variables.templateMap[arguments.template],
+      Invoke( variables, variables.templateMap[template].handler, {
+          'settings': variables.templateMap[template],
           'projectDirectory': projectDirectory,
           'projectPrefix': projectPrefix
       });
