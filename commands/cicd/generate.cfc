@@ -18,7 +18,7 @@ component {
 		// Available tempalates
 		variables.templateMap = {
 			'aws-fargate' : { 
-        handler: 'generateAWSFargate',
+        generateHandler: 'generateAWSFargate',
         templatePath: '/commandbox-cicd-templates/templates/aws-fargate/',
         description: 'CloudFormation templates for Blue/Green deployment to AWS Fargate using CodePipeline'
       }
@@ -63,7 +63,7 @@ component {
        );
 
       // Generate template based on 'template' parameter
-      Invoke( variables, variables.templateMap[template].handler, {
+      Invoke( variables, variables.templateMap[template].generateHandler, {
           'settings': variables.templateMap[template],
           'projectDirectory': projectDirectory,
           'projectPrefix': projectPrefix
@@ -123,7 +123,8 @@ component {
     }
 
     if ( !FileExists(dockerIgnore) ) {
-      FileCopy( settings.templatePath & '.dockerignore', dockerIgnore );
+      // Somehow the leading "." gets lost when installing from Forgebox, so removed in template for now.
+      FileCopy( settings.templatePath & 'dockerignore', dockerIgnore );
       print.cyanLine( 'File #dockerIgnore# created.' );
     }
     else {
