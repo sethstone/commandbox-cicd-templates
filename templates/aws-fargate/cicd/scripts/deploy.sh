@@ -4,14 +4,19 @@ ${AWS_PAGER+"false"} && unset _AWS_PAGER || _AWS_PAGER="$AWS_PAGER"
 export AWS_PAGER=""
 prefix="@@CICDTEMPLATE_PROJECT_PREFIX@@"
 
+########################################################################################################################
+# DEPLOY STACKS
+########################################################################################################################
 aws cloudformation deploy --stack-name ${prefix}-network --template-file cicd/aws/templates/1-network.yml
 aws cloudformation deploy --stack-name ${prefix}-ecs --template-file cicd/aws/templates/2-ecs.yml --capabilities CAPABILITY_NAMED_IAM
 # The ECS service is built with a desired count of 0 to allow stack creation to succeed prior to the ECR repo being
 # populated.  Here we set the service to a desired count of 2 and update the template for future runs.
 aws ecs update-service --cluster ${prefix}-ecs-fargate-cluster --service ${prefix}-service --desired-count 2 > /dev/null
-sed -i 's/DesiredCount: 0/DesiredCount: 2/' cicd/aws/templates/2-ecs.yml 
 aws cloudformation deploy --stack-name ${prefix}-pipeline --template-file cicd/aws/templates/3-pipeline.yml --capabilities CAPABILITY_NAMED_IAM
 
+########################################################################################################################
+# CREATE DEPLOYMENT GROUP
+########################################################################################################################
 # As of 4/10/20 CloudFormation doesn't support Blue/Green deployments for ECS so we create it with the CLI.
 # Monitoring this GitHub issue: https://github.com/aws/containers-roadmap/issues/130
 # AWS CloudFormation docs for DeploymentGroup with Blue/Green Deployment Style: 
@@ -44,13 +49,16 @@ if [ $? -eq 1 ]; then
         --service-role-arn ${CFN_CODEDEPLOY_SRV_ROLE}
 fi
 
-# Output key info
+########################################################################################################################
+# USER INSTRUCTIONS
+########################################################################################################################
 echo
 aws cloudformation describe-stacks --stack-name ${prefix}-pipeline --query "Stacks[0].Outputs[?OutputKey=='CloneUrlSsh'].OutputValue" --output text --no-paginate 
 aws cloudformation describe-stacks --stack-name ${prefix}-pipeline --query "Stacks[0].Outputs[?OutputKey=='CloneUrlHttp'].OutputValue" --output text --no-paginate 
 echo
 echo -n 'http://'
 aws cloudformation describe-stacks --stack-name ${prefix}-ecs --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerDNSName'].OutputValue" --output text --no-paginate 
+
 
 # Reset the AWS CLI pager either to unset or its original value
 ${_AWS_PAGER+"false"} && unset AWS_PAGER || AWS_PAGER="$_AWS_PAGER"

@@ -10,14 +10,14 @@
 **/
 component {
 
-	/**
-	 * Constructor
-	 */
-	function init(){
+  /**
+   * Constructor
+   */
+  function init(){
 
-		// Available tempalates
-		variables.templateMap = {
-			'aws-fargate' : { 
+    // Available tempalates
+    variables.templateMap = {
+      'aws-fargate' : { 
         generateHandler: 'generateAWSFargate',
         templatePath: '/commandbox-cicd-templates/templates/aws-fargate/',
         description: 'CloudFormation templates for Blue/Green deployment to AWS Fargate using CodePipeline'
@@ -50,8 +50,8 @@ component {
       }
       print.line();
     }
- 		// Run the template setup if this is a known template
-		else if ( variables.templateMap.keyExists( template ) ) {
+     // Run the template setup if this is a known template
+    else if ( variables.templateMap.keyExists( template ) ) {
       // Confirm install location
       projectDirectory = ask(
         message='Project directory: ',
@@ -68,7 +68,7 @@ component {
           'projectDirectory': projectDirectory,
           'projectPrefix': projectPrefix
       });
-		}
+    }
     else {
       print.line().redLine( 'Could not find: #template#!' );
     }
@@ -88,7 +88,7 @@ component {
     // ✅ Copy files
     // ✅ Check for preesence of existing files and skip
     // ✅ Tokenize
-    // Make deploy.sh executable
+    // ✅ Make deploy.sh executable
     // output instructions for running deploy.sh
     // Add a template id file to cicd folder
 
@@ -109,9 +109,12 @@ component {
         .run()
       ;
       print.cyanLine( 'Directory #cicdDirectory# created.' );
+      FileSetAccessMode( cicdDirectory & '/scripts/deploy.sh', '755' );  
+      FileSetAccessMode( cicdDirectory & '/scripts/undeploy.sh', '755' );  
+      print.cyanLine( 'Execute permissions in #cicdDirectory#/scripts set sucessfully.' );
     }
     else {
-      print.yellowline( 'Directory #cicdDirectory# already exists, won''t re-create.' );
+      print.boldYellowline( 'Directory #cicdDirectory# already exists, won''t re-create.' );
     }
 
     if ( !FileExists(dockerCompose) ) {
