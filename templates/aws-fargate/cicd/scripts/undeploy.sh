@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 ${AWS_PAGER+"false"} && unset _AWS_PAGER || _AWS_PAGER="$AWS_PAGER"
 export AWS_PAGER=""

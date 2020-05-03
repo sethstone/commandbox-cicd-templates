@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 ${AWS_PAGER+"false"} && unset _AWS_PAGER || _AWS_PAGER="$AWS_PAGER"
 export AWS_PAGER=""
@@ -40,12 +40,12 @@ if [ $? -eq 1 ]; then
     aws deploy create-deployment-group \
         --application-name ${CFN_CODEDEPLOY_APP} \
         --auto-rollback-configuration enabled=true,events=DEPLOYMENT_FAILURE \
-        --blue-green-deployment-configuration deploymentReadyOption={actionOnTimeout=STOP_DEPLOYMENT,waitTimeInMinutes=60},terminateBlueInstancesOnDeploymentSuccess={action=TERMINATE,terminationWaitTimeInMinutes=15} \
+        --blue-green-deployment-configuration "deploymentReadyOption={actionOnTimeout=STOP_DEPLOYMENT,waitTimeInMinutes=60},terminateBlueInstancesOnDeploymentSuccess={action=TERMINATE,terminationWaitTimeInMinutes=15}" \
         --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
         --deployment-group-name ${CFN_CODEDEPLOY_DG} \
         --deployment-style deploymentOption=WITH_TRAFFIC_CONTROL,deploymentType=BLUE_GREEN \
         --ecs-services clusterName=${CFN_CLUSTER_NAME},serviceName=${CFN_SERVICE_NAME} \
-        --load-balancer-info targetGroupPairInfoList=[{targetGroups=[{name=${CFN_TG1_NAME}},{name=${CFN_TG2_NAME}}],prodTrafficRoute={listenerArns=[${CFN_PROD_LISTENER}]},testTrafficRoute={listenerArns=[${CFN_TEST_LISTENER}]}}] \
+        --load-balancer-info "targetGroupPairInfoList=[{targetGroups=[{name=${CFN_TG1_NAME}},{name=${CFN_TG2_NAME}}],prodTrafficRoute={listenerArns=[${CFN_PROD_LISTENER}]},testTrafficRoute={listenerArns=[${CFN_TEST_LISTENER}]}}]" \
         --service-role-arn ${CFN_CODEDEPLOY_SRV_ROLE}
 fi
 
