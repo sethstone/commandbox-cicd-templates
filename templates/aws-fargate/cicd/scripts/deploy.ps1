@@ -49,8 +49,17 @@ if ($DG_SEARCH -eq $null) {
 # USER INSTRUCTIONS
 ########################################################################################################################
 Write-Host
-aws cloudformation describe-stacks --stack-name $prefix-pipeline --query "Stacks[0].Outputs[?OutputKey=='CloneUrlSsh'].OutputValue" --output text --no-paginate 
-aws cloudformation describe-stacks --stack-name $prefix-pipeline --query "Stacks[0].Outputs[?OutputKey=='CloneUrlHttp'].OutputValue" --output text --no-paginate 
+
+$CFN_SSH_CLONE_URL=(aws cloudformation describe-stacks --stack-name $prefix-pipeline --query "Stacks[0].Outputs[?OutputKey=='CloneUrlSsh'].OutputValue" --output text --no-paginate)
+$CFN_HTTPS_CLONE_URL=(aws cloudformation describe-stacks --stack-name $prefix-pipeline --query "Stacks[0].Outputs[?OutputKey=='CloneUrlHttp'].OutputValue" --output text --no-paginate )
 Write-Host
-$ALBURL=(aws cloudformation describe-stacks --stack-name $prefix-ecs --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerDNSName'].OutputValue" --output text --no-paginate)
-Write-Host "http://$ALBURL"
+Write-Host "CodeCommit Clone URLs: "
+Write-Host "  * $CFN_SSH_CLONE_URL"
+Write-Host "  * $CFN_HTTPS_CLONE_URL"
+Write-Host
+
+$CFN_ALB_URL=(aws cloudformation describe-stacks --stack-name $prefix-ecs --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerDNSName'].OutputValue" --output text --no-paginate)
+Write-Host "Load Balancer URLs: "
+Write-Host "  * TEST: http://$CFN_ALB_URL" ":8080" -separator ""
+Write-Host "  * PROD: http://$CFN_ALB_URL"
+Write-Host

@@ -53,11 +53,17 @@ fi
 # USER INSTRUCTIONS
 ########################################################################################################################
 echo
+echo 'CodeCommit Clone URLs: '
+echo -n '  * '
 aws cloudformation describe-stacks --stack-name ${prefix}-pipeline --query "Stacks[0].Outputs[?OutputKey=='CloneUrlSsh'].OutputValue" --output text --no-paginate 
+echo -n '  * '
 aws cloudformation describe-stacks --stack-name ${prefix}-pipeline --query "Stacks[0].Outputs[?OutputKey=='CloneUrlHttp'].OutputValue" --output text --no-paginate 
 echo
-echo -n 'http://'
-aws cloudformation describe-stacks --stack-name ${prefix}-ecs --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerDNSName'].OutputValue" --output text --no-paginate 
+CFN_ALB_URL=$(aws cloudformation describe-stacks --stack-name ${prefix}-ecs --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerDNSName'].OutputValue" --output text --no-paginate )
+echo 'Load Balancer URLs: '
+echo "  * TEST: http://${CFN_ALB_URL}:8080"
+echo "  * PROD: http://${CFN_ALB_URL}"
+echo
 
 
 # Reset the AWS CLI pager either to unset or its original value

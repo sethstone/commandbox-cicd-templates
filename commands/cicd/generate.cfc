@@ -20,7 +20,7 @@ component {
       'aws-fargate' : { 
         generateHandler: 'generateAWSFargate',
         templatePath: '/commandbox-cicd-templates/templates/aws-fargate/',
-        description: 'CloudFormation templates for Blue/Green deployment to AWS Fargate using CodePipeline'
+        description: 'CloudFormation templates for Blue/Green deployment to AWS Fargate using CodeDeploy'
       }
     };
 
@@ -133,5 +133,14 @@ component {
     else {
       print.boldYellowline( 'File #dockerIgnore# already exists, won''t re-create.' );
     }
+
+    // Output instructions for this template
+    print.line();
+    print.line('SUCCESS!');
+    print.line('To deploy this template to AWS, first configure your aws-cli with approporiate credentials and then run: ');
+    print.line();
+    print.line('  * Mac/Windows/Linux (Bash): <PROJECT_DIR>/cicd/scripts/deploy.sh');
+    print.line('  * Windows (Powershell): <PROJECT_DIR>\cicd\scripts\deploy.ps1');
+    print.line();
   }
 }

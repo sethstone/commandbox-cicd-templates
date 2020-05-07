@@ -1,6 +1,7 @@
 cicd
 .dockerignore
 README.md
+readme.md
 .cfformat.json
 .cflintrc
 .editorconfig
@@ -8,4 +9,4 @@ README.md
 .git
 .gitattributes
 .gitignore
-server.json
+docker-compose.yml
