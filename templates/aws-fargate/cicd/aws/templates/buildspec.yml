@@ -4,27 +4,37 @@ phases:
   install:
     runtime-versions:
       java: openjdk8
+    commands:
+      # Get Commandbox
+      - curl -fsSl https://downloads.ortussolutions.com/debs/gpg | apt-key add -
+      - echo "deb https://downloads.ortussolutions.com/debs/noarch /" | tee -a /etc/apt/sources.list.d/commandbox.list
+      - apt-get update && apt-get --assume-yes install apt-transport-https commandbox
   pre_build:
     commands:
       - aws --version
       - aws ecr get-login-password | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
       - REPOSITORY_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - box version
   build:
     commands:
+      # Build image
       - echo Docker image build started on $(date)
       - docker image build -f cicd/docker/commandbox/Dockerfile -t $REPOSITORY_URI:$IMAGE_TAG .
-      # Test Image
+      - echo Docker image build completed on $(date)
+      # Test image
+      # (We're making some assumptions about port number, ideally the container port would be sourced from `docker inspect`)
+      - echo Running tests started on $(date)
       - docker run -d --name codebuild_${ECR_REPO_NAME} -p 8080:8080 $REPOSITORY_URI:$IMAGE_TAG
-      - timeout 60 bash -c "until [ $(docker inspect --format {{.State.Health.Status}} codebuild_${ECR_REPO_NAME}) == 'healthy' ]; do echo -n .; sleep 3; done"
-      - ls -l $(which sh)
-      - curl http://localhost:8080
+      - timeout 60 bash -c 'until [[ "$(docker inspect --format {{.State.Health.Status}} codebuild_${ECR_REPO_NAME})" == "healthy" ]]; do echo -n .; sleep 3; done'
+      - box testbox run runner="http://localhost:8080/tests/runner.cfm?method=runRemote" 
   post_build:
     commands:
-      - echo Docker image build completed on $(date)
+      # Push image to ECR
+      - echo Tests completed on $(date)
       - echo Pushing the Docker image...
       - docker push $REPOSITORY_URI:$IMAGE_TAG
-      # 
+      # Create output artifacts for next stage
       - echo Create deploy stage artifacts
       - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDetail.json
       - cp cicd/aws/templates/task-definition.json.tmpl task-definition.json

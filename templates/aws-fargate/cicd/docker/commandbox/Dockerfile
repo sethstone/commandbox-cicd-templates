@@ -1,8 +1,11 @@
 FROM ortussolutions/commandbox:lucee5-3.0.2
 
-# Install our box.json dependencies in an earlier layer to take advantage of caching
+# Install our box.json dependencies in an earlier layer to take advantage of caching.
+# We have to install testbox into the image in order to run tests once the container image is built.  It's not ideal
+# to deploy testbox, but the trade-off for being able to easily test the container iamage using standard tools seems
+# worth it.
 COPY ./box.json ${APP_DIR}
-RUN cd ${APP_DIR} && box install --production
+RUN cd ${APP_DIR} && box install --production && box install testbox
 
 # Copy application source files
 COPY . ${APP_DIR}
