@@ -84,14 +84,6 @@ component {
     required string projectDirectory,
     required string projectPrefix
   ) {
-    // TODO:
-    // ✅ Copy files
-    // ✅ Check for preesence of existing files and skip
-    // ✅ Tokenize
-    // ✅ Make deploy.sh executable
-    // output instructions for running deploy.sh
-    // Add a template id file to cicd folder
-
     var cicdDirectory = projectDirectory & 'cicd';
     var dockerCompose = projectDirectory & 'docker-compose.yml';
     var dockerIgnore = projectDirectory & '.dockerignore';
