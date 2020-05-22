@@ -37,10 +37,10 @@ box cicd generate template=aws-fargate
 You'll be prompted for the location of your project's root directory and the prefix name you want to use for naming your
 cloud resources.  
 
-(2) Review and customize generated files.
+(2) Review and customize generated files in new **cicd** folder.
 
-Review the docker/commandbox/Dockerfile and the CF templates in aws/templates to make adjustments for your project.
-Also consider modifying the `.dockerignore` file in your project root to exclude files that you don't want in the final 
+Review the `docker/commandbox/Dockerfile` and the CF templates in `aws/templates` to make adjustments for your project.
+Also consider modifying the `docker/commandbox/Dockerfile.dockerignore` file to exclude files that you don't want in the final 
 production image.
 
 (3) Verify your aws-cli

@@ -86,9 +86,8 @@ component {
   ) {
     var cicdDirectory = projectDirectory & 'cicd';
     var dockerCompose = projectDirectory & 'docker-compose.yml';
-    var dockerIgnore = projectDirectory & '.dockerignore';
 
-    // Generate /cicd fodler, docker-compse.yml and .dockerignore
+    // Generate /cicd fodler, docker-compse.yml
     if ( !DirectoryExists(cicdDirectory) ) {
       DirectoryCopy( settings.templatePath & 'cicd', cicdDirectory, true );
       this.command( 'tokenReplace' )
@@ -115,15 +114,6 @@ component {
     }
     else {
       print.boldYellowline( 'File #dockerCompose# already exists, won''t re-create.' );
-    }
-
-    if ( !FileExists(dockerIgnore) ) {
-      // Somehow the leading "." gets lost when installing from Forgebox, so removed in template for now.
-      FileCopy( settings.templatePath & 'dockerignore', dockerIgnore );
-      print.cyanLine( 'File #dockerIgnore# created.' );
-    }
-    else {
-      print.boldYellowline( 'File #dockerIgnore# already exists, won''t re-create.' );
     }
 
     // Output instructions for this template

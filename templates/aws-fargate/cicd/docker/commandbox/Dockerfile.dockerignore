@@ -1,12 +1,13 @@
-cicd
-.dockerignore
-README.md
-readme.md
 .cfformat.json
 .cflintrc
+.dockerignore
 .editorconfig
 .env.example
 .git
 .gitattributes
 .gitignore
+cicd
 docker-compose.yml
+readme.md
+README.md
+tests
