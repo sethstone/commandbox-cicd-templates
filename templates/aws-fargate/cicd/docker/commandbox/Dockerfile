@@ -1,4 +1,4 @@
-FROM ortussolutions/commandbox:lucee5-3.0.2
+FROM ortussolutions/commandbox:lucee5-3.4.4
 
 # Install our box.json dependencies in an earlier layer to take advantage of caching.
 COPY ./box.json ${APP_DIR}
