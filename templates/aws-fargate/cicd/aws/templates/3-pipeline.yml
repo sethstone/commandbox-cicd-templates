@@ -93,7 +93,7 @@ Resources:
       FunctionName: !Ref LambdaCleanupOnDeleteFunctionName
       Handler: index.lambda_handler
       Role: !GetAtt CleanupBucketOnDeleteLambdaRole.Arn
-      Runtime: python2.7
+      Runtime: python3.9
       Timeout: 60
       Code:
         ZipFile: !Sub |
