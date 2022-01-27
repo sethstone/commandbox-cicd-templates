@@ -133,7 +133,7 @@ Resources:
       FunctionName: !Ref LambdaDeleteECRRepoFunctionName
       Handler: index.lambda_handler
       Role: !GetAtt DeleteECRRepoLambdaRole.Arn
-      Runtime: python2.7
+      Runtime: python3.9
       Timeout: 60
       Code:
         ZipFile: !Sub |
