@@ -103,3 +103,14 @@ To remove all the resources (including your CodeCommit repo and ECR repo) you ca
 
  * Bash: `cicd/scripts/undeploy.sh`
  * Powershell: `cicd\scripts\undeploy.ps1`
+
+ ***2022-03-18 Update***
+ 
+ Due to changes in [Docker Hub's pull policy](https://docs.docker.com/docker-hub/download-rate-limit/) it's no longer
+ reliable to pull the official commandbox image anonymously from AWS CodeBuild due to enforced rate limits.  I've
+ created an imperfect solution that attempts to mirror the image into a privately managed ECR repo.  This will work
+ somewhat because the first "anonymous pull" from Docker Hub in a newly created CodeBuild environment will often succeed
+ and then proceed to work very sparingly afterwards.  If at least one pull succeeds the image will be mirrored into ECR
+ and subsequent builds can used that cached image.  There's lots of reasons this is not ideal, so I don't plan on
+ pushing this version to ForgeBox.  I'm working on an alternative solution that allows you to login with your Docker
+ credentials during the build by storing your credentials in AWS Parameter Store.  

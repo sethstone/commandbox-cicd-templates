@@ -8,6 +8,11 @@ Parameters:
     Type: String
     Default: @@CICDTEMPLATE_PROJECT_PREFIX@@
 
+  ECRCommandBoxMirror:
+    Description: An ECR repository that mirrors the CommandBox Docker image to avoid rate-limiting on Docker Hub
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-cbmirror
+
   ECRRepoName:
     Description: An ECR repository that contains the Docker images build by CodeBuild and deployed to ECS
     Type: String
@@ -113,6 +118,11 @@ Resources:
   ######################################################################################################################
   ### ECR Repo, ECS Cluster, Task Definition and Service
   ######################################################################################################################
+  ECRRepositoryBase:
+    Type: AWS::ECR::Repository
+    Properties: 
+      RepositoryName: !Ref ECRCommandBoxMirror
+
   ECRRepository:
     Type: AWS::ECR::Repository
     Properties: 
@@ -319,6 +329,11 @@ Resources:
             !Ref TargetGroup1
 
 Outputs:
+  ECRCommandBoxMirror:
+    Description: The name of the ECR repository for the CommandBox Mirror
+    Value: !Ref ECRRepositoryBase
+    Export:
+      Name: !Sub ${AWS::StackName}:ECRCommandBoxMirror
   ECRRepoName:
     Description: The name of the ECR repository for the application image
     Value: !Ref ECRRepository
