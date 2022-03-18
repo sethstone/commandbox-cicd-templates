@@ -7,6 +7,6 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y \
 # Warm up the server with a specific version of CF Engine version. To see which
 # versions are available on Forgebox run:
 #   box forgebox search "Lucee CF Engine"
-ENV BOX_SERVER_APP_CFENGINE=lucee@5.3.8+206
 ENV BOX_SERVER_PROFILE=development
+ENV BOX_SERVER_APP_CFENGINE=lucee@5.3.8+206
 RUN ${BUILD_DIR}/util/warmup-server.sh

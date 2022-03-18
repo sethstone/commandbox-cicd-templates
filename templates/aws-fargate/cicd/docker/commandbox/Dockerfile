@@ -1,4 +1,4 @@
-FROM ortussolutions/commandbox:lucee5-3.4.4
+FROM ortussolutions/commandbox
 
 # Install our box.json dependencies in an earlier layer to take advantage of caching.
 COPY ./box.json ${APP_DIR}
@@ -8,7 +8,8 @@ RUN cd ${APP_DIR} && box install --production
 COPY . ${APP_DIR}
 
 # Warm-up the server
-ENV HEADLESS true
+ENV BOX_SERVER_PROFILE=production
+ENV BOX_SERVER_APP_CFENGINE=lucee@5.3.8+206
 RUN ${BUILD_DIR}/util/warmup-server.sh \
     && rm -f .cfconfig.json \
     || true
