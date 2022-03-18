@@ -63,10 +63,22 @@ To trigger the CI/CD pipeline you must push to the CodeCommit repo that was crea
 remote.  For example:
 
 ```
-git remote add origin ssh://ACCESSKEYID@git-codecommit.<REGION>.amazonaws.com/v1/repos/<REPONAME>
+git remote add origin ssh://SSHKEYID@git-codecommit.<REGION>.amazonaws.com/v1/repos/<REPONAME>
 ```
 
+Note: Look in IAM for your user's SSH Key.  Will need access to push to the given Repo.
+
 (7) Create a commit and push to CodeCommit 
+
+```
+git push --set-upstream origin master
+```
+
+Subsequent pushes:
+
+```
+git push
+```
 
 (8) Watch pipeline run and verify test application
 
@@ -83,7 +95,7 @@ Once your comfortable that your project has deployed to the test target group yo
 deployment details screen and CodeDeploy will now instruct the Application Load Balancer to route production traffic to
 your new containers.  
 
-(10) Future deployments would only require repeating steps 7-10.
+(10) Future deployments would only require repeating steps 7-9.
 
 **Undeployment**
 
