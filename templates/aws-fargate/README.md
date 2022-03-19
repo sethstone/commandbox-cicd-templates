@@ -1,8 +1,6 @@
 # aws-fargate Template
 
-This template generates CloudFormation stack templates to create the necessary AWS resources to host your CFML
-application on AWS ECS/Fargate.  Additionally, it will create a complete CodePipeline CI/CD pipeline to automate the
-testing and deployment of your application.
+This template generates CloudFormation stack templates to create the necessary AWS resources to host your CFML application on AWS ECS/Fargate.  Additionally, it will create a complete CodePipeline CI/CD pipeline to automate the deployment of your application.
 
 ## Files created 
 **cicd/aws/templates** - this directory contains the CloudFormation templates and supporting files to deploy the architecture.
@@ -118,4 +116,4 @@ To remove all the resources (including your CodeCommit repo and ECR repo) you ca
 I've now implemented a Docker login solution to handle the rate-limiting problem described above.  This approach
 is much cleaner and doesn't have any of the drawbacks as the ECR mirroring solution.  The only downside is that I now
 must prompt the user for Docker credentials when running the deployment script and store those credentials in AWS
-System Manager Parameter Store.
+Systems Manager Parameter Store.
