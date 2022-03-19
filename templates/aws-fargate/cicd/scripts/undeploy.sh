@@ -18,4 +18,10 @@ aws cloudformation delete-stack --stack-name ${prefix}-network
 aws cloudformation wait stack-delete-complete --stack-name ${prefix}-network --no-paginate
 echo "${prefix}-network delete finished."
 
+# Delete SSM Parameters for DockerHub
+echo "Deleting AWS System Manager parameters for DockerHub ..."
+aws ssm delete-parameter --name "${prefix}-DOCKERHUB_USERNAME"
+aws ssm delete-parameter --name "${prefix}-DOCKERHUB_PASSWORD"
+echo "Finished deleting parameters."
+
 ${_AWS_PAGER+"false"} && unset AWS_PAGER || AWS_PAGER="$_AWS_PAGER"

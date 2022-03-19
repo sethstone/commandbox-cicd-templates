@@ -15,6 +15,29 @@ aws ecs update-service --cluster ${prefix}-ecs-fargate-cluster --service ${prefi
 aws cloudformation deploy --stack-name ${prefix}-pipeline --template-file cicd/aws/templates/3-pipeline.yml --capabilities CAPABILITY_NAMED_IAM
 
 ########################################################################################################################
+# CREATE SYSTEM MANAGER PARAMETERS
+########################################################################################################################
+# As of 3/18/22 CloudFormation doesn't support creating SecureString parameters with the CLI.
+echo 
+echo "Pulling images from DockerHub is severely rate-limited when done anonymously."
+echo "To allow CodeBuild to pull images from DockerHub we need a set of login credentials.  (Free account is acceptable)."
+echo "These credentials will be stored encrypted in AWS SSM Parameter Store using your account's AWS-managed key (AWS KMS)."
+aws ssm describe-parameters --filters "Key=Name,Values=${prefix}-DOCKERHUB_USERNAME" | grep -q ${prefix}-DOCKERHUB_USERNAME
+if [ $? -eq 1 ]; then 
+    echo -n "Please provide the Docker Username: "
+    read USERINPUT_DOCKERHUB_USERNAME
+    aws ssm put-parameter --name "${prefix}-DOCKERHUB_USERNAME" --value "${USERINPUT_DOCKERHUB_USERNAME}" --type "SecureString"
+fi
+aws ssm describe-parameters --filters "Key=Name,Values=${prefix}-DOCKERHUB_PASSWORD" | grep -q ${prefix}-DOCKERHUB_PASSWORD
+if [ $? -eq 1 ]; then 
+    echo -n "Please provide the Docker Password: "
+    read USERINPUT_DOCKERHUB_PASSWORD
+    aws ssm put-parameter --name "${prefix}-DOCKERHUB_PASSWORD" --value "${USERINPUT_DOCKERHUB_PASSWORD}" --type "SecureString"
+fi
+echo 
+echo "Note: If you need to change the password later you can do so from the AWS System Manager service in the console."
+
+########################################################################################################################
 # CREATE DEPLOYMENT GROUP
 ########################################################################################################################
 # As of 4/10/20 CloudFormation doesn't support Blue/Green deployments for ECS so we create it with the CLI.

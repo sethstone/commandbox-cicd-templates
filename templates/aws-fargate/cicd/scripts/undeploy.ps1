@@ -13,3 +13,9 @@ Write-Host "Deleting $prefix-network stack..."
 aws cloudformation delete-stack --stack-name $prefix-network
 aws cloudformation wait stack-delete-complete --stack-name $prefix-network --no-paginate
 Write-Host "$prefix-network delete finished."
+
+# Delete SSM Parameters for DockerHub
+Write-Host "Deleting AWS System Manager parameters for DockerHub ..."
+aws ssm delete-parameter --name "$prefix-DOCKERHUB_USERNAME"
+aws ssm delete-parameter --name "$prefix-DOCKERHUB_PASSWORD"
+Write-Host "Finished deleting parameters."

@@ -87,7 +87,7 @@ component {
     var cicdDirectory = projectDirectory & 'cicd';
     var dockerCompose = projectDirectory & 'docker-compose.yml';
 
-    // Generate /cicd fodler, docker-compse.yml
+    // Generate /cicd folder, docker-compose.yml
     if ( !DirectoryExists(cicdDirectory) ) {
       DirectoryCopy( settings.templatePath & 'cicd', cicdDirectory, true );
       this.command( 'tokenReplace' )

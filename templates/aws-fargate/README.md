@@ -15,10 +15,10 @@ testing and deployment of your application.
 
 There are two other important files in this directory to be aware of:
   
-  * **buildspec.yml** - This defines your build process for building your container image and testing it.
+  * **buildspec.yml** - This defines your build process for building your container image.
   * **task-definition.json** - This file defines the cpu and memory resources that will be use by your containers.
 
-**cicd/docker** - this contains the Dockerfiles used to build the production image (and if you choose to use the
+**cicd/docker** - this contains the Dockerfiles used to build the production image (and if you choose to use it the
 development image.)
 
 **cicd/scripts** - these are Bash and Powershell scripts used to deploy and undeploy the architecture to AWS. This
@@ -52,6 +52,14 @@ configure it with `aws configure` and then verify connectivity by running `aws c
 
  * Bash: `cicd/scripts/deploy.sh`
  * Powershell: `cicd\scripts\deploy.ps1`
+
+ ❗ Note: The user you configure in the aws-cli must have all the necessary permissions to create the resources 
+ described in the CloudFormation templates.  I generally just use a user that has the AdministratorAccess policy.
+
+ ❗ Note: You will need to provide **a valid Docker username and password** when prompted by the deploy script.
+ These credentials will be stored encrypted in AWS SSM Parameter Store using your account's AWS-managed key (AWS KMS)
+ and will not be stored anywhere in your local project.  If you need to manage these credentials later you can do so
+ directly from the AWS System Manager service in the console.
 
 (5) View resources in AWS console
 
@@ -107,10 +115,17 @@ To remove all the resources (including your CodeCommit repo and ECR repo) you ca
  ***2022-03-18 Update***
  
  Due to changes in [Docker Hub's pull policy](https://docs.docker.com/docker-hub/download-rate-limit/) it's no longer
- reliable to pull the official commandbox image anonymously from AWS CodeBuild due to enforced rate limits.  I've
+ reliable to pull the official commandbox image anonymously from AWS CodeBuild due to enforced rate limits.  ~~I've
  created an imperfect solution that attempts to mirror the image into a privately managed ECR repo.  This will work
  somewhat because the first "anonymous pull" from Docker Hub in a newly created CodeBuild environment will often succeed
  and then proceed to work very sparingly afterwards.  If at least one pull succeeds the image will be mirrored into ECR
- and subsequent builds can used that cached image.  There's lots of reasons this is not ideal, so I don't plan on
+ and subsequent builds can use that cached image.  There's lots of reasons this is not ideal, so I don't plan on
  pushing this version to ForgeBox.  I'm working on an alternative solution that allows you to login with your Docker
- credentials during the build by storing your credentials in AWS Parameter Store.  
+ credentials during the build by storing your credentials in AWS Parameter Store.~~
+
+***2022-03-19 Update***
+
+I've now implemented a Docker login solution to handle the rate-limiting problem described above.  This approach
+is much cleaner and doesn't have any of the drawbacks as the ECR mirroring solution.  The only downside is that I now
+must prompt the user for Docker credentials when running the deployment script and store those credentials in AWS
+System Manager Parameter Store.

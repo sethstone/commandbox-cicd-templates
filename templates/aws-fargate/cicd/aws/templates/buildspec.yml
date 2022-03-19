@@ -1,53 +1,18 @@
 version: 0.2
 
+env:
+  parameter-store:
+    DOCKER_HUB_USERNAME: @@CICDTEMPLATE_PROJECT_PREFIX@@-DOCKER_HUB_USERNAME
+    DOCKER_HUB_PASSWORD: @@CICDTEMPLATE_PROJECT_PREFIX@@-DOCKER_HUB_PASSWORD
+
 phases:
-  install:
-    runtime-versions:
-      java: openjdk8
-    commands:
-      # Get Commandbox
-      - curl -fsSl https://downloads.ortussolutions.com/debs/gpg | apt-key add -
-      - echo "deb https://downloads.ortussolutions.com/debs/noarch /" | tee -a /etc/apt/sources.list.d/commandbox.list
-      - apt-get update && apt-get --assume-yes install apt-transport-https commandbox
-      - box version
   pre_build:
     commands:
-      # Docker Login to ECR
-      - aws --version
       - docker --version
+      - aws --version
+      # Login to both DockerHub and Amazon ECR
+      - echo $DOCKER_HUB_PASSWORD | docker login --username $DOCKER_HUB_USERNAME --password-stdin
       - aws ecr get-login-password | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-
-      # Mirror CommandBox image into ECR (if needed).  See: https://www.docker.com/increase-rate-limits
-      # Note: If using base image (which will be tagged 'latest' automatically in ECR) you may need to occassionally
-      # purge it from your ECR Repo to force a pull of a new image.  (Or manually update it from yoru local system).
-      # Note: Multi-stage builds that source Docker Hub more than once are not supported.
-      - CBMIRROR_REPOSITORY_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_COMMANDBOX_MIRROR}
-      - 'BASE_COMMANDBOX_IMAGE=$(grep "^FROM ortussolutions/commandbox" cicd/docker/commandbox/Dockerfile | awk -F" " ''{print$2}'')'
-      - 'echo "Found commandbox image name: ${BASE_COMMANDBOX_IMAGE}"'
-      - 'BASE_COMMANDBOX_IMAGE_TAG=$(echo "${BASE_COMMANDBOX_IMAGE}" | awk -F":" ''{print$2}'')'
-      - |
-        if [ -z "${BASE_COMMANDBOX_IMAGE_TAG}" ]; then 
-          BASE_COMMANDBOX_IMAGE_TAG=latest 
-        fi
-      - 'echo "Image is tagged as: ${BASE_COMMANDBOX_IMAGE_TAG}"'
-      - 'CBMIRROR_IMAGE_EXISTS=$(aws ecr list-images --repository-name ${ECR_COMMANDBOX_MIRROR} | grep -c "\"imageTag\": \"${BASE_COMMANDBOX_IMAGE_TAG}\"" || true)'
-      # If the docker image pull fails, wait a few minutes and retry the build or push the needed image
-      # into ECR from your local system. 
-      - |
-        if [ "${CBMIRROR_IMAGE_EXISTS}" -eq "0" ]; then
-          docker image pull ${BASE_COMMANDBOX_IMAGE}
-          docker image tag ${BASE_COMMANDBOX_IMAGE} ${CBMIRROR_REPOSITORY_URI}:${BASE_COMMANDBOX_IMAGE_TAG}
-          docker image push ${CBMIRROR_REPOSITORY_URI}:${BASE_COMMANDBOX_IMAGE_TAG}
-        fi
-
-      # Rewrite "FROM" instruction in Dockerfile 
-      - sed -i "s|${BASE_COMMANDBOX_IMAGE}|${CBMIRROR_REPOSITORY_URI}:${BASE_COMMANDBOX_IMAGE_TAG}|" cicd/docker/commandbox/Dockerfile
-
-      # debug 
-      - aws ecr list-images --repository-name ${ECR_COMMANDBOX_MIRROR}
-      - cat cicd/docker/commandbox/Dockerfile
-
-      # Setup variables for building and pushing the application image
       - REPOSITORY_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
   build:
@@ -58,26 +23,9 @@ phases:
       - export DOCKER_BUILDKIT=1
       - docker image build -f cicd/docker/commandbox/Dockerfile -t $REPOSITORY_URI:$IMAGE_TAG .
       - echo Docker image build completed on $(date)
-      ### 
-      ### 2022-03-18
-      ### Now that production Dockerfile is using ENV BOX_SERVER_PROFILE=production the defaults path for running
-      ### tests are administratively blocked.  This is great for security, but will require additional work if we want
-      ### mount and run tests inside the prod-ready image at this point in the process.  For now commenting out and I
-      ### would recommend running tests somewhere upstream prior to building the production container.
-      ###
-      ### # Run test container and call testbox runner
-      ### - echo Running tests started on $(date)
-      ### # 'tests' directory is excluded from the image so we volume mount it into the container.
-      ### # (Also, we're making some assumptions about port number, ideally the container port would be sourced from `docker inspect`)
-      ### - docker run -d --name codebuild_${ECR_REPO_NAME} -p 8080:8080 -v $(pwd)/tests:/app/tests $REPOSITORY_URI:$IMAGE_TAG
-      ### # We install testbox inside our testing container after the image is built so that it doesn't get deployed.
-      ### - docker exec -t -w /app codebuild_${ECR_REPO_NAME} box install testbox
-      ### - timeout 60 bash -c 'until [[ "$(docker inspect --format {{.State.Health.Status}} codebuild_${ECR_REPO_NAME})" == "healthy" ]]; do echo -n .; sleep 3; done'
-      ### - box testbox run runner="http://localhost:8080/tests/runner.cfm?method=runRemote" 
   post_build:
     commands:
       # Push image to ECR
-      ### - echo Tests completed on $(date)
       - echo Pushing the Docker image...
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       # Create output artifacts for next stage
