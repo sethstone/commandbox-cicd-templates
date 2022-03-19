@@ -30,80 +30,70 @@ script to update your environment.  OR they can just be used as your starting po
 manually after the stacks are initially generated.
 
 ## Usage 
-(1) Create the template by running `cicd generate` in your commandbox environment
-```
-box cicd generate template=aws-fargate
-```
-You'll be prompted for the location of your project's root directory and the prefix name you want to use for naming your
-cloud resources.  
 
-(2) Review and customize generated files in new **cicd** folder.
+**Deployment**
 
-Review the `docker/commandbox/Dockerfile` and the CF templates in `aws/templates` to make adjustments for your project.
-Also consider modifying the `docker/commandbox/Dockerfile.dockerignore` file to exclude files that you don't want in the final 
-production image.
+1. Create the template by running `cicd generate` in your commandbox environment
+    ```
+    box cicd generate template=aws-fargate
+    ```
+    You'll be prompted for the location of your project's root directory and the prefix name you want to use for naming your cloud resources.  
 
-(3) Verify your aws-cli
+2. Review and customize generated files in new **cicd** folder.
 
-As mentioned above you need to have **aws-cli** >= 2.0.6 installed in your terminal.  Once installed you should
-configure it with `aws configure` and then verify connectivity by running `aws cloudformation list-stacks`.
+    Review the `docker/commandbox/Dockerfile` and the CF templates in `aws/templates` to make adjustments for your project. Also consider modifying the `docker/commandbox/Dockerfile.dockerignore` file to exclude files that you don't want in the final production image.
 
-(4) Deploy the stacks 
+3. Verify your aws-cli
 
- * Bash: `cicd/scripts/deploy.sh`
- * Powershell: `cicd\scripts\deploy.ps1`
+    As mentioned above you need to have **aws-cli** >= 2.0.6 installed in your terminal.  Once installed you should configure it with `aws configure` and then verify connectivity by running `aws cloudformation list-stacks`.
 
- ❗ Note: The user you configure in the aws-cli must have all the necessary permissions to create the resources 
- described in the CloudFormation templates.  I generally just use a user that has the AdministratorAccess policy.
+4. Deploy the stacks 
 
- ❗ Note: You will need to provide **a valid Docker username and password** when prompted by the deploy script.
- These credentials will be stored encrypted in AWS SSM Parameter Store using your account's AWS-managed key (AWS KMS)
- and will not be stored anywhere in your local project.  If you need to manage these credentials later you can do so
- directly from the AWS System Manager service in the console.
+    ◼ Bash: `cicd/scripts/deploy.sh`
 
-(5) View resources in AWS console
+    ◼ Powershell: `cicd\scripts\deploy.ps1`
 
-If the deployment completes successfully you can view the created resources in your AWS console.  
+    ❗ Note: The user you configure in the aws-cli must have all the necessary permissions to create the resources described in the CloudFormation templates.  I generally select a user with the `AdministratorAccess` IAM policy.
 
-(6) Add CodeCommit repo as a git remote 
+    ❗ Note: You will need to provide **a valid Docker username and password** when prompted by the deploy script. These credentials will be stored encrypted in AWS SSM Parameter Store using your account's AWS-managed key (AWS KMS) and will not be stored anywhere in your local project.  If you need to manage these credentials later you can do so directly from the AWS System Manager service in the console.
 
-To trigger the CI/CD pipeline you must push to the CodeCommit repo that was created, but first you must add it as a
-remote.  For example:
+5. View resources in AWS console
 
-```
-git remote add origin ssh://SSHKEYID@git-codecommit.<REGION>.amazonaws.com/v1/repos/<REPONAME>
-```
+    If the deployment completes successfully you can view the created resources in your AWS console.  
 
-Note: Look in IAM for your user's SSH Key.  Will need access to push to the given Repo.
+6. Add CodeCommit repo as a git remote 
 
-(7) Create a commit and push to CodeCommit 
+    To trigger the CI/CD pipeline you must push to the CodeCommit repo that was created, but first you must add it as a remote.  For example:
 
-```
-git push --set-upstream origin master
-```
+    ```
+    git remote add origin ssh://SSHKEYID@git-codecommit.<REGION>.amazonaws.com/v1/repos/<REPONAME>
+    ```
 
-Subsequent pushes:
+    Note: Look in IAM for your user's SSH Key.  Your user will need access to push to the given repository.
 
-```
-git push
-```
+7. Create a commit and push to CodeCommit 
 
-(8) Watch pipeline run and verify test application
+    ```
+    git push --set-upstream origin master
+    ```
 
-Open the CodePipeline console and verify that the build succeeds and the deploy has started. Once the deploy has started
-it will take a couple of minutes to launch the new "Green" containers.  You can view the status by clicking the
-"Details" link in the Deploy stage action.
+    Subsequent pushes:
 
-Once the containers are deployed and test traffic has been routed you can test them using the TEST URL that was output
-whenever you ran the `deploy.sh` script.
+    ```
+    git push
+    ```
 
-(9) Re-route traffic 
+8. Watch pipeline run and verify test application
 
-Once your comfortable that your project has deployed to the test target group you can click "Reroute traffic" in the
-deployment details screen and CodeDeploy will now instruct the Application Load Balancer to route production traffic to
-your new containers.  
+    Open the CodePipeline console and verify that the build succeeds and the deploy has started. Once the deploy has started it will take a couple of minutes to launch the new "Green" containers.  You can view the status by clicking the "Details" link in the Deploy stage action.
 
-(10) Future deployments would only require repeating steps 7-9.
+    Once the containers are deployed and test traffic has been routed you can test them using the TEST URL that was output whenever you ran the `deploy.sh` script.
+
+9. Re-route traffic 
+
+    Once your comfortable that your project has deployed to the test target group you can click "Reroute traffic" in the deployment details screen and CodeDeploy will now instruct the Application Load Balancer to route production traffic to your new containers.  
+
+10. Future deployments only require repeating steps 7-9.
 
 **Undeployment**
 
