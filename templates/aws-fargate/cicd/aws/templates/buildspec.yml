@@ -2,8 +2,8 @@ version: 0.2
 
 env:
   parameter-store:
-    DOCKER_HUB_USERNAME: @@CICDTEMPLATE_PROJECT_PREFIX@@-DOCKER_HUB_USERNAME
-    DOCKER_HUB_PASSWORD: @@CICDTEMPLATE_PROJECT_PREFIX@@-DOCKER_HUB_PASSWORD
+    DOCKERHUB_USERNAME: @@CICDTEMPLATE_PROJECT_PREFIX@@-DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD: @@CICDTEMPLATE_PROJECT_PREFIX@@-DOCKERHUB_PASSWORD
 
 phases:
   pre_build:
@@ -11,7 +11,7 @@ phases:
       - docker --version
       - aws --version
       # Login to both DockerHub and Amazon ECR
-      - echo $DOCKER_HUB_PASSWORD | docker login --username $DOCKER_HUB_USERNAME --password-stdin
+      - echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password-stdin
       - aws ecr get-login-password | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
       - REPOSITORY_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
