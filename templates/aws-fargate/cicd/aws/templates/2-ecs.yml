@@ -190,7 +190,7 @@ Resources:
   DeleteECRRepoLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub lambda-${ProjectPrefix}-DeleteECRRepo-execution-role
+      RoleName: !Sub lambda-${ProjectPrefix}-DeleteECRRepo-exec-role
       Description: !Sub Execution role to allow Lambda function to force delete ECR Repo
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -241,7 +241,7 @@ Resources:
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ecstasks-${ProjectPrefix}-${AWS::Region}-execution-role
+      RoleName: !Sub ecstasks-${ProjectPrefix}-${AWS::Region}-exec-role
       Description: !Sub IAM role applied to containers running in the ${ProjectPrefix}-service service.
       AssumeRolePolicyDocument:
         Statement:

@@ -58,9 +58,11 @@ component {
         defaultResponse='#getCWD()#'
       );
       projectPrefix = ask(
-        message='Project prefix (used for naming cloud resources): ',
+        message='Project prefix (used for naming cloud resources; 28 character-limit): ',
         defaultResponse='#getCWD().listLast("/\")#'
        );
+      // Enforce length (Driven by max length of ELB target groups names (32) and IAM Roles (64))
+      projectPrefix = projectPrefix.left(28);
 
       // Generate template based on 'template' parameter
       Invoke( variables, variables.templateMap[template].generateHandler, {

@@ -74,7 +74,7 @@ if [ $? -eq 1 ]; then
     aws ssm put-parameter --name "${prefix}-DOCKERHUB_PASSWORD" --value "${USERINPUT_DOCKERHUB_PASSWORD}" --type "SecureString"
 fi
 echo 
-echo "Note: If you need to change the password later you can do so from the AWS System Manager service in the console."
+echo "Note: If you need to change the password later you can do so from the AWS Systems Manager service in the console."
 
 ########################################################################################################################
 # USER INSTRUCTIONS

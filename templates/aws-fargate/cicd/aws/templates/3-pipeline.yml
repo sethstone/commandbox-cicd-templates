@@ -141,7 +141,7 @@ Resources:
   CleanupBucketOnDeleteLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub lambda-${ProjectPrefix}-CleanupBucketOnDelete-execution-role
+      RoleName: !Sub lambda-${ProjectPrefix}-CleanupBucket-exec-role
       Description: !Sub Execution role to allow Lambda function to empty the artifact bucket
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -176,8 +176,8 @@ Resources:
   CloudWatchSourceEventRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub cloudwatch-${ProjectPrefix}-source-event-${AWS::Region}-service-role
-      Description: Role for CloudWatch source events to trigger AWS codePipeline execution
+      RoleName: !Sub cldwatch-${ProjectPrefix}-${AWS::Region}-svc-role
+      Description: Role for CloudWatch source events to trigger AWS CodePipeline execution
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -225,7 +225,7 @@ Resources:
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub codebuild-${CodeBuildProjectName}-${AWS::Region}-service-role
+      RoleName: !Sub cbuild-${ProjectPrefix}-${AWS::Region}-svc-role
       Description: !Sub Role for CodeBuild project ${CodeBuildProjectName} to access S3 artifacts, ECR, CloudWatch
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -302,7 +302,7 @@ Resources:
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub codedeploy-${CodeDeployApplicationName}-${AWS::Region}-service-role
+      RoleName: !Sub cdeploy-${ProjectPrefix}-${AWS::Region}-svc-role
       Description: !Sub Role for CodeDeploy application ${CodeDeployApplicationName} to access ECS, ALB and S3
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -325,7 +325,7 @@ Resources:
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub codepipeline-${CodePipelineName}-${AWS::Region}-service-role
+      RoleName: !Sub cpipeline-${ProjectPrefix}-${AWS::Region}-svc-role
       Description: !Sub Role for CodePipeline application ${CodePipelineName} to access S3, CodeCommit and CodeBuild
       AssumeRolePolicyDocument:
         Version: 2012-10-17

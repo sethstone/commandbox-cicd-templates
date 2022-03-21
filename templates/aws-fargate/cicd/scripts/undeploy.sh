@@ -19,7 +19,7 @@ aws cloudformation wait stack-delete-complete --stack-name ${prefix}-network --n
 echo "${prefix}-network delete finished."
 
 # Delete SSM Parameters for DockerHub
-echo "Deleting AWS System Manager parameters for DockerHub ..."
+echo "Deleting AWS Systems Manager parameters for DockerHub ..."
 aws ssm delete-parameter --name "${prefix}-DOCKERHUB_USERNAME"
 aws ssm delete-parameter --name "${prefix}-DOCKERHUB_PASSWORD"
 echo "Finished deleting parameters."

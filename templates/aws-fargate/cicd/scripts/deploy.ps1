@@ -72,7 +72,7 @@ if ($SSM1_SEARCH -eq $null) {
     aws ssm put-parameter --name "$prefix-DOCKERHUB_PASSWORD" --value "$USERINPUT_DOCKERHUB_PASSWORD" --type "SecureString"
 }
 Write-Host
-Write-Host "Note: If you need to change the password later you can do so from the AWS System Manager service in the console."
+Write-Host "Note: If you need to change the password later you can do so from the AWS Systems Manager service in the console."
 
 ########################################################################################################################
 # USER INSTRUCTIONS
