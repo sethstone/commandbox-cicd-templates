@@ -100,7 +100,7 @@ To remove all the resources (including your CodeCommit repo and ECR repo) you ca
  * Bash: `cicd/scripts/undeploy.sh`
  * Powershell: `cicd\scripts\undeploy.ps1`
 
-❗�� Note: This configuration will **cost around USD 55.00 per month** (based on prices in us-east-1 as of Februrary 2022) assuming a very minimal amount of activity.
+❗:money_with_wings: Note: This configuration will **cost around USD 55.00 per month** (based on prices in us-east-1 as of Februrary 2022) assuming a very minimal amount of activity.
 
  ***2022-03-18 Update***
  
