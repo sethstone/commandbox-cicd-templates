@@ -64,7 +64,7 @@ manually after the stacks are initially generated.
     To trigger the CI/CD pipeline you must push to the CodeCommit repo that was created, but first you must add it as a remote.  For example:
 
     ```
-    git remote add origin ssh://SSHKEYID@git-codecommit.<REGION>.amazonaws.com/v1/repos/<REPONAME>
+    git remote add origin ssh://<SSHKEYID>@git-codecommit.<REGION>.amazonaws.com/v1/repos/<REPONAME>
     ```
 
     Note: Look in IAM for your user's SSH Key.  Your user will need access to push to the given repository.
