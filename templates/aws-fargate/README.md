@@ -67,7 +67,7 @@ manually after the stacks are initially generated.
     git remote add origin ssh://<SSHKEYID>@git-codecommit.<REGION>.amazonaws.com/v1/repos/<REPONAME>
     ```
 
-    Note: Look in IAM for your user's SSH Key.  Your user will need access to push to the given repository.
+    Note: Look in IAM for your user's SSH Key Id.  Your user will need access to push to the given repository.
 
 7. Create a commit and push to CodeCommit 
 
