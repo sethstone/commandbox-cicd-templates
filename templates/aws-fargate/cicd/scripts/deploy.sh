@@ -15,48 +15,7 @@ aws ecs update-service --cluster ${prefix}-ecs-fargate-cluster --service ${prefi
 aws cloudformation deploy --stack-name ${prefix}-pipeline --template-file cicd/aws/templates/3-pipeline.yml --capabilities CAPABILITY_NAMED_IAM
 
 ########################################################################################################################
-# CREATE DEPLOYMENT GROUP
-########################################################################################################################
-# As of 4/10/20 CloudFormation doesn't support Blue/Green deployments for ECS so we create it with the CLI.
-# Monitoring this GitHub issue: https://github.com/aws/containers-roadmap/issues/130
-# AWS CloudFormation docs for DeploymentGroup with Blue/Green Deployment Style: 
-#   https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-codedeploy-deploymentgroup-deploymentstyle.html
-########################################################################################################################
-# Update 3/19/22: Issue 130 mentioned above is now resolved, but in a suprisingly limited way.  CloudFormation can 
-# create a DeploymentGroup for Blue/Green deployment, but it doesn't support the necessary hooks to integrate with 
-# CI/CD.  Namely, declaring output values or importing values from other stacks is not currently supported for templates
-# defining Blue/Green ECS deployments.  See new issue: https://github.com/aws-cloudformation/cloudformation-coverage-roadmap/issues/483
-########################################################################################################################
-CFN_CLUSTER_NAME=$(aws cloudformation describe-stacks --stack-name ${prefix}-ecs --query "Stacks[0].Outputs[?OutputKey=='ClusterName'].OutputValue" --output text --no-paginate)
-CFN_SERVICE_NAME=$(aws cloudformation describe-stacks --stack-name ${prefix}-ecs --query "Stacks[0].Outputs[?OutputKey=='ServiceName'].OutputValue" --output text --no-paginate)
-CFN_TG1_NAME=$(aws cloudformation describe-stacks --stack-name ${prefix}-ecs --query "Stacks[0].Outputs[?OutputKey=='TargetGroup1Name'].OutputValue" --output text --no-paginate)
-CFN_TG2_NAME=$(aws cloudformation describe-stacks --stack-name ${prefix}-ecs --query "Stacks[0].Outputs[?OutputKey=='TargetGroup2Name'].OutputValue" --output text --no-paginate)
-CFN_PROD_LISTENER=$(aws cloudformation describe-stacks --stack-name ${prefix}-ecs --query "Stacks[0].Outputs[?OutputKey=='ALBProductionListener'].OutputValue" --output text --no-paginate)
-CFN_TEST_LISTENER=$(aws cloudformation describe-stacks --stack-name ${prefix}-ecs --query "Stacks[0].Outputs[?OutputKey=='ALBTestListener'].OutputValue" --output text --no-paginate)
-
-CFN_CODEDEPLOY_APP=$(aws cloudformation describe-stacks --stack-name ${prefix}-pipeline --query "Stacks[0].Outputs[?OutputKey=='CodeDeployApplicationName'].OutputValue" --output text --no-paginate)
-CFN_CODEDEPLOY_DG=$(aws cloudformation describe-stacks --stack-name ${prefix}-pipeline --query "Stacks[0].Outputs[?OutputKey=='CodeDeployDeploymentGroupName'].OutputValue" --output text --no-paginate)
-CFN_CODEDEPLOY_SRV_ROLE=$(aws cloudformation describe-stacks --stack-name ${prefix}-pipeline --query "Stacks[0].Outputs[?OutputKey=='CodeDeployServiceRole'].OutputValue" --output text --no-paginate)
-
-# Check to see if DG already exists and skip creating if it does.
-aws deploy list-deployment-groups --application-name ${CFN_CODEDEPLOY_APP} | grep -q ${CFN_CODEDEPLOY_DG}
-if [ $? -eq 1 ]; then 
-    # Deployment Group CLI Reference
-    # https://docs.aws.amazon.com/cli/latest/reference/deploy/create-deployment-group.html
-    aws deploy create-deployment-group \
-        --application-name ${CFN_CODEDEPLOY_APP} \
-        --auto-rollback-configuration enabled=true,events=DEPLOYMENT_FAILURE \
-        --blue-green-deployment-configuration "deploymentReadyOption={actionOnTimeout=STOP_DEPLOYMENT,waitTimeInMinutes=60},terminateBlueInstancesOnDeploymentSuccess={action=TERMINATE,terminationWaitTimeInMinutes=15}" \
-        --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
-        --deployment-group-name ${CFN_CODEDEPLOY_DG} \
-        --deployment-style deploymentOption=WITH_TRAFFIC_CONTROL,deploymentType=BLUE_GREEN \
-        --ecs-services clusterName=${CFN_CLUSTER_NAME},serviceName=${CFN_SERVICE_NAME} \
-        --load-balancer-info "targetGroupPairInfoList=[{targetGroups=[{name=${CFN_TG1_NAME}},{name=${CFN_TG2_NAME}}],prodTrafficRoute={listenerArns=[${CFN_PROD_LISTENER}]},testTrafficRoute={listenerArns=[${CFN_TEST_LISTENER}]}}]" \
-        --service-role-arn ${CFN_CODEDEPLOY_SRV_ROLE}
-fi
-
-########################################################################################################################
-# CREATE SYSTEM MANAGER PARAMETERS
+# CREATE SYSTEMS MANAGER PARAMETERS
 ########################################################################################################################
 # As of 3/18/22 CloudFormation doesn't support creating SecureString parameters with the CLI.
 echo 

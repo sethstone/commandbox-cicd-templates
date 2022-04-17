@@ -454,6 +454,44 @@ Resources:
           Name: ECS-BlueGreenDeploy
           RunOrder: 1
 
+  DeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties: 
+      ApplicationName: !Ref CodeDeployApplication
+      AutoRollbackConfiguration: 
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+      BlueGreenDeploymentConfiguration: 
+        DeploymentReadyOption: 
+          ActionOnTimeout: STOP_DEPLOYMENT
+          WaitTimeInMinutes: 60
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 15
+      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
+      DeploymentGroupName: !Ref CodeDeployDeploymentGroupName
+      DeploymentStyle: 
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+        DeploymentType: BLUE_GREEN
+      LoadBalancerInfo: 
+        TargetGroupPairInfoList: 
+          - TargetGroups:
+              - Name: !Sub ${ProjectPrefix}-tg1
+              - Name: !Sub ${ProjectPrefix}-tg2
+            ProdTrafficRoute: 
+              ListenerArns:
+                - Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:ALBProductionListener
+            TestTrafficRoute: 
+              ListenerArns:
+                - Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:ALBTestListener
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      ECSServices:
+        - ClusterName:
+            Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:ClusterName
+          ServiceName:
+            Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:ServiceName
+
 Outputs:
   CodeDeployApplicationName:
     Description: CodeDeploy Application Name

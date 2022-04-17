@@ -4,7 +4,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y \
     tzdata \
     vim \
  && rm -rf /var/lib/apt/lists/*
-# Warm up the server with a specific version of CF Engine version. To see which
+# Warm up the server with a specific CF Engine version. To see which
 # versions are available on Forgebox run:
 #   box forgebox search "Lucee CF Engine"
 ENV BOX_SERVER_PROFILE=development
