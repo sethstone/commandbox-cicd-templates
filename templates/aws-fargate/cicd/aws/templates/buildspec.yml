@@ -19,21 +19,20 @@ phases:
     commands:
       # Build image
       - echo Docker image build started on $(date)
-      # Required to correctly load Dockerfile.dockerignore, but also generates a lot of debugging output
-      - export DOCKER_BUILDKIT=1
-      - docker image build -f cicd/docker/commandbox/Dockerfile -t $REPOSITORY_URI:$IMAGE_TAG .
+      # BUILDKIT var required to correctly load Dockerfile.dockerignore, but also generates a lot of debugging output
+      - DOCKER_BUILDKIT=1 docker image build -f cicd/docker/commandbox/Dockerfile -t ${REPOSITORY_URI}:${IMAGE_TAG} .
       - echo Docker image build completed on $(date)
   post_build:
     commands:
       # Push image to ECR
       - echo Pushing the Docker image...
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - docker push ${REPOSITORY_URI}:${IMAGE_TAG}
       # Create output artifacts for next stage
       - echo Create deploy stage artifacts
-      - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDetail.json
+      - printf '{"ImageURI":"%s"}' ${REPOSITORY_URI}:${IMAGE_TAG} > imageDetail.json
       - cp cicd/aws/templates/task-definition.json.tmpl task-definition.json
-      - sed -i "s|CICDTEMPLATE_TASK_EXECUTION_ROLE_ARN|$TASKEXEC_ROLE|g" task-definition.json
-      - sed -i "s|CICDTEMPLATE_AWS_REGION|$AWS_REGION|g" task-definition.json
+      - sed -i "s|CICDTEMPLATE_TASK_EXECUTION_ROLE_ARN|${TASKEXEC_ROLE}|g" task-definition.json
+      - sed -i "s|CICDTEMPLATE_AWS_REGION|${AWS_REGION}|g" task-definition.json
       - cp cicd/aws/templates/appspec.yml appspec.yml
 artifacts:
   files:

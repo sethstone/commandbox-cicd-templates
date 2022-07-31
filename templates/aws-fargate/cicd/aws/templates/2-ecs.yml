@@ -286,13 +286,13 @@ Resources:
       ExecutionRoleArn: !Ref ECSTaskExecutionRole
       
   #*********************************************************************************************************************
-  # Unfortunately, the ECS Service Resource can not be modified by CloudFormation once it's created.  This is a side-
+  # Unfortunately, an ECS Service resource can not be modified by CloudFormation once it's created.  This is a side-
   # effect of using DeploymentController: CODE_DEPLOY.  Changing this resource and updating the stack will likely result
   # in the following error: "Unable to update task definition on services with a CODE_DEPLOY deployment controller. Use
   # AWS CodeDeploy to trigger a new deployment."  You may however be able to make changes via the AWS CLI.
   #*********************************************************************************************************************
   # Also, note that we are setting DesiredCount to 0 here in order to deploy the service without a valid ECR image.  A
-  # separate CLI command must be run after the stack is created to change the DesirecCount from 0 to 2.
+  # separate CLI command must be run after the stack is created to change the DesiredCount from 0 to 2.
   #*********************************************************************************************************************
   ECSService:
     Type: AWS::ECS::Service

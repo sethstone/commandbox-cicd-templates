@@ -1,4 +1,5 @@
 FROM ortussolutions/commandbox
+# PRO TIP: Consider layer caching to order COPY and RUN instructions optimally.
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y \
     net-tools \
     tzdata \
