@@ -53,7 +53,7 @@ manually after the stacks are initially generated.
 
     ❗ Note: The user you configure in the aws-cli must have all the necessary permissions to create the resources described in the CloudFormation templates.  I generally select a user with the `AdministratorAccess` IAM policy.
 
-    ❗ Note: You will need to provide **a valid Docker username and password** when prompted by the deploy script. These credentials will be stored encrypted in AWS SSM Parameter Store using your account's AWS-managed key (AWS KMS) and will not be stored anywhere in your local project.  If you need to manage these credentials later you can do so directly from the AWS System Manager service in the console.
+    ❗ Note: Due to changes in [Docker Hub's pull policy](https://docs.docker.com/docker-hub/download-rate-limit/) you will need to provide **a valid Docker Hub username and password** when prompted by the deploy script. These credentials will be stored encrypted in AWS SSM Parameter Store using your account's AWS-managed key (AWS KMS) and will not be stored anywhere in your local project.  If you need to manage these credentials later you can do so directly from the AWS System Manager console.  If you don't have an account, sign up for a free account here: https://hub.docker.com/. 
 
 5. View resources in AWS console
 

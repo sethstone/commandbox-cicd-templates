@@ -126,5 +126,7 @@ component {
     print.line('  * Mac/Windows/Linux (Bash): <PROJECT_DIR>/cicd/scripts/deploy.sh');
     print.line('  * Windows (Powershell): <PROJECT_DIR>\cicd\scripts\deploy.ps1');
     print.line();
+    print.line('Please also be sure to have your Docker Hub credentials ready (free or paid account will work).');
+    print.line();
   }
 }

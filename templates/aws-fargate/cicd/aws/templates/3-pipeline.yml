@@ -283,9 +283,6 @@ Resources:
           Value: !Ref AWS::AccountId
         - Name: AWS_REGION
           Value: !Ref AWS::Region
-        - Name: ECR_COMMANDBOX_MIRROR
-          Value:
-            Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:ECRCommandBoxMirror
         - Name: ECR_REPO_NAME
           Value:
             Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:ECRRepoName

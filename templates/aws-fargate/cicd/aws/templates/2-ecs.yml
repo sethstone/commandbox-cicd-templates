@@ -113,11 +113,6 @@ Resources:
   ######################################################################################################################
   ### ECR Repo, ECS Cluster, Task Definition and Service
   ######################################################################################################################
-  ECRRepositoryBase:
-    Type: AWS::ECR::Repository
-    Properties: 
-      RepositoryName: !Ref ECRCommandBoxMirror
-
   ECRRepository:
     Type: AWS::ECR::Repository
     Properties: 
@@ -324,11 +319,6 @@ Resources:
             !Ref TargetGroup1
 
 Outputs:
-  ECRCommandBoxMirror:
-    Description: The name of the ECR repository for the CommandBox Mirror
-    Value: !Ref ECRRepositoryBase
-    Export:
-      Name: !Sub ${AWS::StackName}:ECRCommandBoxMirror
   ECRRepoName:
     Description: The name of the ECR repository for the application image
     Value: !Ref ECRRepository
