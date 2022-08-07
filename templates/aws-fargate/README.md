@@ -67,7 +67,7 @@ manually after the stacks are initially generated.
     git remote add origin ssh://<SSHKEYID>@git-codecommit.<REGION>.amazonaws.com/v1/repos/<REPONAME>
     ```
 
-    Note: Look in IAM for your user's SSH Key Id.  Your user will need access to push to the given repository.
+    Note: Using SSH keys with AWS CodeCommit requires that you have an IAM user with valid access to the given repository and that user has a valid SSH key already uploaded on the Security Credentials tab in the console.  If not, you must upload an SSH key to continue or you can attempt to use the HTTPS Git credentials for AWS CodeCommmit.
 
 7. Create a commit and push to CodeCommit 
 

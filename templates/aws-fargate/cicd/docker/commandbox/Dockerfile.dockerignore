@@ -6,6 +6,7 @@
 .git
 .gitattributes
 .gitignore
+.vscode
 README.md
 cicd
 docker-compose.yml
