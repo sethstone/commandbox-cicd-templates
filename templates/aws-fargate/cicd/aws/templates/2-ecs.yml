@@ -141,9 +141,9 @@ Resources:
     Type: Custom::cleanupbucket
     DependsOn:
     - TaskExecEnvFileS3Bucket
-    - CleanupBucketOnDeleteLambda
+    - CleanupBucketLambda
     Properties:
-      ServiceToken: !GetAtt CleanupBucketOnDeleteLambda.Arn
+      ServiceToken: !GetAtt CleanupBucketLambda.Arn
       BucketName: !Ref TaskExecEnvFileS3Bucket
 
   CleanupBucketLambda:
@@ -152,7 +152,7 @@ Resources:
       Description: Lambda Function to Empty S3 Bucket (including versions) upon Delete
       FunctionName: !Ref LambdaCleanupBucketLambdaName
       Handler: index.lambda_handler
-      Role: !GetAtt CleanupBucketOnDeleteLambdaRole.Arn
+      Role: !GetAtt CleanupBucketLambdaRole.Arn
       Runtime: python3.9
       Timeout: 60
       Code:
@@ -246,7 +246,7 @@ Resources:
           Resource:
           - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}/*
       Roles:
-      - !Ref CleanupBucketOnDeleteLambdaRole
+      - !Ref CleanupBucketLambdaRole
 
   ######################################################################################################################
   ### ECR Repo, ECS Cluster, Task Definition and Service
