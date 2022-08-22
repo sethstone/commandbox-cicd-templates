@@ -22,12 +22,12 @@ development image.)
 **cicd/scripts** - these are Bash and Powershell scripts used to deploy and undeploy the architecture to AWS. This
 requires the **aws-cli** to be installed and configured with your AWS credentials.
 
-🌟 Once these files are generated they are yours to customize and maintain as part of your project.  If you need to make
+🌟 **Once these files are generated they are yours to customize and maintain as part of your project.** 🌟  If you need to make
 architectural changes you can modify the CF (CloudFormation) templates and re-run the **deploy.sh** (or **deploy.ps1**) 
-script to update your environment.  OR they can just be used as your starting point and you can manage the resources 
-manually after the stacks are initially generated.
+script to update your environment OR they can just be used as your starting point and you can manage the resources 
+manually after the stacks are initially deployed.
 
-## Usage 
+## Quickstart Usage 
 
 **Deployment**
 
@@ -53,7 +53,7 @@ manually after the stacks are initially generated.
 
     ❗ Note: The user you configure in the aws-cli must have all the necessary permissions to create the resources described in the CloudFormation templates.  I generally select a user with the `AdministratorAccess` IAM policy.
 
-    ❗ Note: Due to changes in [Docker Hub's pull policy](https://docs.docker.com/docker-hub/download-rate-limit/) you will need to provide **a valid Docker Hub username and password** when prompted by the deploy script. These credentials will be stored encrypted in AWS SSM Parameter Store using your account's AWS-managed key (AWS KMS) and will not be stored anywhere in your local project.  If you need to manage these credentials later you can do so directly from the AWS System Manager console.  If you don't have an account, sign up for a free account here: https://hub.docker.com/. 
+    ❗ Note: Due to [Docker Hub's pull policy](https://docs.docker.com/docker-hub/download-rate-limit/) you will need to provide **a valid Docker Hub username and password** when prompted by the deploy script. These credentials will be stored encrypted in AWS SSM Parameter Store using your account's AWS-managed key (AWS KMS) and will not be stored anywhere in your local project.  If you need to manage these credentials later you can do so directly from the AWS System Manager console.  If you don't have an account, sign up for a free account here: https://hub.docker.com/. 
 
 5. View resources in AWS console
 
@@ -89,7 +89,7 @@ manually after the stacks are initially generated.
 
 9. Re-route traffic 
 
-    Once your comfortable that your project has deployed to the test target group you can click "Reroute traffic" in the deployment details screen and CodeDeploy will now instruct the Application Load Balancer to route production traffic to your new containers.  
+    Once your comfortable that your project has deployed successfully to the test target group you can click "Reroute traffic" in the deployment details screen and CodeDeploy will now instruct the Application Load Balancer to route production traffic to your new containers.  
 
 10. Future deployments only require repeating steps 7-9.
 
@@ -100,22 +100,4 @@ To remove all the resources (including your CodeCommit repo and ECR repo) you ca
  * Bash: `cicd/scripts/undeploy.sh`
  * Powershell: `cicd\scripts\undeploy.ps1`
 
-❗:money_with_wings: Note: This configuration will **cost around USD 55.00 per month** (based on prices in us-east-1 as of Februrary 2022) assuming a very minimal amount of activity.
-
- ***2022-03-18 Update***
- 
- Due to changes in [Docker Hub's pull policy](https://docs.docker.com/docker-hub/download-rate-limit/) it's no longer
- reliable to pull the official commandbox image anonymously from AWS CodeBuild due to enforced rate limits.  ~~I've
- created an imperfect solution that attempts to mirror the image into a privately managed ECR repo.  This will work
- somewhat because the first "anonymous pull" from Docker Hub in a newly created CodeBuild environment will often succeed
- and then proceed to work very sparingly afterwards.  If at least one pull succeeds the image will be mirrored into ECR
- and subsequent builds can use that cached image.  There's lots of reasons this is not ideal, so I don't plan on
- pushing this version to ForgeBox.  I'm working on an alternative solution that allows you to login with your Docker
- credentials during the build by storing your credentials in AWS Parameter Store.~~
-
-***2022-03-19 Update***
-
-I've now implemented a Docker login solution to handle the rate-limiting problem described above.  This approach
-is much cleaner and doesn't have any of the drawbacks as the ECR mirroring solution.  The only downside is that I now
-must prompt the user for Docker credentials when running the deployment script and store those credentials in AWS
-Systems Manager Parameter Store.
+:money_with_wings: Note: This configuration will **cost around USD 55.00 per month** (based on prices in us-east-1 as of Februrary 2022) assuming a very minimal amount of activity.

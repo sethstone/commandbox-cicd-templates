@@ -18,6 +18,11 @@ Parameters:
     Type: String
     Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-lambda-DeleteECRRepo
 
+  LambdaCleanupBucketLambdaName: 
+    Description: Name of Lambda function used to trigger a cleanup when Delete is called on an S3 bucket
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-lambda-CleanupBucket
+
 Resources:
   ######################################################################################################################
   ### Application Load Balancer and Target Groups for Blue/Green Deployment
@@ -29,14 +34,14 @@ Resources:
       GroupName: !Sub ${ProjectPrefix}-alb-sg
       GroupDescription: !Sub Permits Internet traffic to the ${ProjectPrefix}-alb load balancer.
       SecurityGroupIngress:
-        - CidrIp: 0.0.0.0/0
-          IpProtocol: TCP
-          FromPort: 80
-          ToPort: 80
-        - CidrIp: 0.0.0.0/0
-          IpProtocol: TCP
-          FromPort: 8080
-          ToPort: 8080
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: TCP
+        FromPort: 80
+        ToPort: 80
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: TCP
+        FromPort: 8080
+        ToPort: 8080
       VpcId:
         Fn::ImportValue: !Sub ${ProjectPrefix}-network-VPC
 
@@ -46,11 +51,11 @@ Resources:
       Name: !Sub ${ProjectPrefix}-alb
       Scheme: internet-facing
       Subnets:
-        - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetOne
-        - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetTwo
-        - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetThree
+      - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetOne
+      - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetTwo
+      - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetThree
       SecurityGroups:
-        - !Ref LoadBalancerSecurityGroup
+      - !Ref LoadBalancerSecurityGroup
 
   TargetGroup1:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -83,8 +88,8 @@ Resources:
   ProductionListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     DependsOn:
-      - TargetGroup1
-      - TargetGroup2
+    - TargetGroup1
+    - TargetGroup2
     Properties:
       DefaultActions:
         - Type: forward
@@ -98,8 +103,8 @@ Resources:
   TestListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     DependsOn:
-      - TargetGroup1
-      - TargetGroup2
+    - TargetGroup1
+    - TargetGroup2
     Properties:
       DefaultActions:
         - Type: forward
@@ -111,6 +116,139 @@ Resources:
       Port: 8080
 
   ######################################################################################################################
+  ### S3 Buckets used by this stack
+  ######################################################################################################################
+  TaskExecEnvFileS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Description: Referred to in Task Definition and used by ECS to load an ENV var file at container run-time
+    Properties:
+      BucketName: !Sub ${ProjectPrefix}-env-prod
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  CustomCleanupTaskExecEnvFileS3BucketOnDelete:
+    Type: Custom::cleanupbucket
+    DependsOn:
+    - TaskExecEnvFileS3Bucket
+    - CleanupBucketOnDeleteLambda
+    Properties:
+      ServiceToken: !GetAtt CleanupBucketOnDeleteLambda.Arn
+      BucketName: !Ref TaskExecEnvFileS3Bucket
+
+  CleanupBucketLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda Function to Empty S3 Bucket (including versions) upon Delete
+      FunctionName: !Ref LambdaCleanupBucketLambdaName
+      Handler: index.lambda_handler
+      Role: !GetAtt CleanupBucketOnDeleteLambdaRole.Arn
+      Runtime: python3.9
+      Timeout: 60
+      Code:
+        ZipFile: !Sub |
+          #!/usr/bin/env python
+          # -*- coding: utf-8 -*-
+
+          import json
+          import boto3
+          import urllib3
+
+          def lambda_handler(event, context):
+              try:
+                  bucket = event['ResourceProperties']['BucketName']
+
+                  if event['RequestType'] == 'Delete':
+                      s3 = boto3.resource('s3')
+                      bucket = s3.Bucket(bucket)
+                      bucket.objects.all().delete()
+                      bucket.object_versions.all().delete()
+
+                  sendResponseCfn(event, context, "SUCCESS")
+              except Exception as e:
+                  print(e)
+                  sendResponseCfn(event, context, "FAILED")
+
+          def sendResponseCfn(event, context, responseStatus):
+              response_body = {
+                                'Status': responseStatus,
+                                'Reason': 'Log stream name: ' + context.log_stream_name,
+                                'PhysicalResourceId': context.log_stream_name,
+                                'StackId': event['StackId'],
+                                'RequestId': event['RequestId'],
+                                'LogicalResourceId': event['LogicalResourceId'],
+                                'Data': json.loads("{}")
+                              }
+
+              http = urllib3.PoolManager()
+              http.request('PUT',
+                  event['ResponseURL'],
+                  body = json.dumps(response_body),
+                  headers = {'Content-Type': 'application/json'},
+                  retries = False
+              )
+      
+  CleanupBucketLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub lambda-${ProjectPrefix}-CleanupBucket-exec-role
+      Description: !Sub Execution role to allow Lambda function to empty the artifact bucket
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: !Sub ${LambdaCleanupBucketLambdaName}-ecs-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource:
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${LambdaCleanupBucketLambdaName}
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${LambdaCleanupBucketLambdaName}:*
+
+  # Creates a policy for deleting S3 buckets and attaches to Lambda execution role created in 2-ecs stack definition.
+  CleanupUpBucketOnDeletePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:ListBucket
+          - s3:ListBucketVersions
+          Resource:
+          - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}
+        - Effect: Allow
+          Action:
+          - s3:DeleteObject
+          - s3:DeleteObjectVersion
+          Resource:
+          - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}/*
+      Roles:
+      - !Ref CleanupBucketOnDeleteLambdaRole
+
+  ######################################################################################################################
   ### ECR Repo, ECS Cluster, Task Definition and Service
   ######################################################################################################################
   ECRRepository:
@@ -120,6 +258,9 @@ Resources:
 
   CustomDeleteECRRepoOnDelete:
     Type: Custom::DeleteECRRepo
+    DependsOn:
+    - ECRRepository
+    - DeleteECRRepoLambda 
     Properties:
       ServiceToken: !GetAtt DeleteECRRepoLambda.Arn
       RegistryId: !Ref AWS::AccountId
@@ -127,7 +268,6 @@ Resources:
 
   DeleteECRRepoLambda:
     Type: AWS::Lambda::Function
-    DependsOn: ECRRepository
     Properties:
       Description: Lambda Function to force delete of ECR repo even when images exist
       FunctionName: !Ref LambdaDeleteECRRepoFunctionName
@@ -253,6 +393,12 @@ Resources:
             - logs:CreateLogGroup
             Resource:
             - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/*
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            Resource:
+            - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}
+            - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}/*
 
   TaskDefinition: 
     Type: AWS::ECS::TaskDefinition
@@ -292,9 +438,9 @@ Resources:
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
-      - LoadBalancer
-      - ProductionListener
-      - TaskDefinition
+    - LoadBalancer
+    - ProductionListener
+    - TaskDefinition
     Properties:
       ServiceName: !Sub ${ProjectPrefix}-service
       Cluster: !Ref ECSCluster
@@ -306,19 +452,29 @@ Resources:
         AwsvpcConfiguration:
           AssignPublicIp: ENABLED
           SecurityGroups:
-            - !Ref ContainerSecurityGroup
+          - !Ref ContainerSecurityGroup
           Subnets:
-            - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetOne
-            - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetTwo
-            - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetThree
+          - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetOne
+          - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetTwo
+          - Fn::ImportValue: !Sub ${ProjectPrefix}-network-PublicSubnetThree
       TaskDefinition: !Ref TaskDefinition
       LoadBalancers:
-        - ContainerName: !Ref ProjectPrefix
-          ContainerPort: 8080
-          TargetGroupArn:
-            !Ref TargetGroup1
+      - ContainerName: !Ref ProjectPrefix
+        ContainerPort: 8080
+        TargetGroupArn:
+          !Ref TargetGroup1
 
 Outputs:
+  CleanupBucketLambda:
+    Description: The ARN of the "Cleanup Bucket" Lambda Function
+    Value: !GetAtt CleanupBucketLambda.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}:CleanupBucketLambda
+  CleanupBucketLambdaRoleName:
+    Description: The Name of the "Cleanup Bucket" Lambda Execution Role
+    Value: !Ref CleanupBucketLambdaRole
+    Export:
+      Name: !Sub ${AWS::StackName}:CleanupBucketLambdaRoleName
   ECRRepoName:
     Description: The name of the ECR repository for the application image
     Value: !Ref ECRRepository

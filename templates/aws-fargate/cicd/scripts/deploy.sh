@@ -5,6 +5,14 @@ export AWS_PAGER=""
 prefix="@@CICDTEMPLATE_PROJECT_PREFIX@@"
 
 ########################################################################################################################
+# CONFIRM CWD
+########################################################################################################################
+if [ ! -d cicd ]; then
+    echo "The 'cicd' folder was not found in the current directory; please switch to your project root before running this script."
+    exit 1
+fi
+
+########################################################################################################################
 # DEPLOY STACKS
 ########################################################################################################################
 aws cloudformation deploy --stack-name ${prefix}-network --template-file cicd/aws/templates/1-network.yml
@@ -13,6 +21,16 @@ aws cloudformation deploy --stack-name ${prefix}-ecs --template-file cicd/aws/te
 # populated.  Here we set the service to a desired count of 2 and update the template for future runs.
 aws ecs update-service --cluster ${prefix}-ecs-fargate-cluster --service ${prefix}-service --desired-count 2 > /dev/null
 aws cloudformation deploy --stack-name ${prefix}-pipeline --template-file cicd/aws/templates/3-pipeline.yml --capabilities CAPABILITY_NAMED_IAM
+
+########################################################################################################################
+# UPLOAD TEMPLATE ENV FILES TO S3
+########################################################################################################################
+if [ -f cicd/env/build-testing.env.tmpl ]; then
+   aws s3 cp cicd/env/build-testing.env.tmpl s3://${prefix}-env-build-testing/build-testing.env
+fi
+if [ -f cicd/env/prod.env.tmpl ]; then
+    aws s3 cp cicd/env/prod.env.tmpl s3://${prefix}-env-prod/prod.env
+fi
 
 ########################################################################################################################
 # CREATE SYSTEMS MANAGER PARAMETERS

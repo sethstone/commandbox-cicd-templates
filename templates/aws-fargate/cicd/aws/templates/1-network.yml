@@ -1,7 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
-Description: This template deploys a VPC with three public subnets across three Availability Zones and an Internet
-  Gateway with a default route on the public subnets.
+Description: VPC, 3 Public Subnets, Internet Gateway set as default route for all subnets
 
 Parameters:
   ProjectPrefix:

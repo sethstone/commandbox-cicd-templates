@@ -13,11 +13,6 @@ Parameters:
     Type: String
     Default: @@CICDTEMPLATE_PROJECT_PREFIX@@
 
-  LambdaCleanupOnDeleteFunctionName: 
-    Description: Name of Lambda function used to trigger a cleanup when Delete is called on an S3 bucket
-    Type: String
-    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-lambda-cleanupbucket
-
   CodeBuildProjectName:
     Description: Name of the CodeBuild project that builds the Docker image
     Type: String
@@ -39,139 +34,94 @@ Parameters:
     Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-pipeline
 
 Resources:
+  ######################################################################################################################
+  ### S3 Buckets used by this stack
+  ######################################################################################################################
+  CodePipelineArtifactsS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Description: CodePipeline stores artifacts here.
+    Properties:
+      BucketName: !Sub ${ProjectPrefix}-codepipeline-artifacts
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  # Uses Lambda function created in 2-ecs stack definition
+  CustomCleanupCodePipelineArtifactsBucketOnDelete:
+    Type: Custom::cleanupbucket
+    DependsOn: CodePipelineArtifactsS3Bucket
+    Properties:
+      ServiceToken:
+        Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:CleanupBucketLambda
+      BucketName: !Ref CodePipelineArtifactsS3Bucket
+
+  CodeBuildTestEnvFileS3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Description: Used as a source in CodePipeline; should contain ENV file for application testing
+    Properties:
+      BucketName: !Sub ${ProjectPrefix}-env-build-testing
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  # Uses Lambda function created in 2-ecs stack definition
+  CustomCleanupCodeBuildTestEnvBucketOnDelete:
+    Type: Custom::cleanupbucket
+    DependsOn: CodeBuildTestEnvFileS3Bucket
+    Properties:
+      ServiceToken:
+        Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:CleanupBucketLambda
+      BucketName: !Ref CodeBuildTestEnvFileS3Bucket
+
+  # Creates a policy for deleting S3 buckets and attaches to Lambda execution role created in 2-ecs stack definition.
+  CleanupUpBucketOnDeletePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:ListBucket
+          - s3:ListBucketVersions
+          Resource:
+          - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}
+          - !Sub arn:aws:s3:::${CodeBuildTestEnvFileS3Bucket}
+        - Effect: Allow
+          Action:
+          - s3:DeleteObject
+          - s3:DeleteObjectVersion
+          Resource:
+          - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}/*
+          - !Sub arn:aws:s3:::${CodeBuildTestEnvFileS3Bucket}/*
+      Roles:
+      - Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:CleanupBucketLambdaRoleName
+
+  ######################################################################################################################
+  ### CodeCommit Repo, CodeBuild Project, CodeDeploy Application and CodePipeline Pipeline
+  ######################################################################################################################
   CodeCommitRepo:
     Type: AWS::CodeCommit::Repository
     Properties:
       RepositoryName: !Ref CodeCommitRepoName
-      #RepositoryDescription: 
-
-  CodePipelineArtifactsS3Bucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Delete
-    Properties:
-      Tags:
-      - Key: Name
-        Value: !Sub ${ProjectPrefix}-codepipeline-artifacts
-
-  CodePipelineArtifactsS3BucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref CodePipelineArtifactsS3Bucket
-      PolicyDocument:
-        Version: 2012-10-17
-        Id: SSEAndSSLPolicy
-        Statement:
-          - Effect: Deny
-            Principal: '*'
-            Action: s3:PutObject
-            Resource: !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}/*
-            Condition:
-              StringNotEquals:
-                s3:x-amz-server-side-encryption: aws:kms
-            Sid: DenyUnEncryptedObjectUploads
-          - Effect: Deny
-            Principal: '*'
-            Action: s3:*
-            Resource: !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}/*
-            Condition:
-              Bool:
-                aws:SecureTransport: false
-            Sid: DenyInsecureConnections
-
-  CustomCleanupBucketOnDelete:
-    Type: Custom::cleanupbucket
-    DependsOn: CleanupBucketOnDeleteLambda
-    Properties:
-      ServiceToken: !GetAtt CleanupBucketOnDeleteLambda.Arn
-      BucketName: !Ref CodePipelineArtifactsS3Bucket
-
-  CleanupBucketOnDeleteLambda:
-    Type: AWS::Lambda::Function
-    DependsOn: CodePipelineArtifactsS3Bucket
-    Properties:
-      Description: Lambda Function to Empty S3 Bucket upon Delete
-      FunctionName: !Ref LambdaCleanupOnDeleteFunctionName
-      Handler: index.lambda_handler
-      Role: !GetAtt CleanupBucketOnDeleteLambdaRole.Arn
-      Runtime: python3.9
-      Timeout: 60
-      Code:
-        ZipFile: !Sub |
-          #!/usr/bin/env python
-          # -*- coding: utf-8 -*-
-
-          import json
-          import boto3
-          import urllib3
-
-          def lambda_handler(event, context):
-              try:
-                  bucket = event['ResourceProperties']['BucketName']
-
-                  if event['RequestType'] == 'Delete':
-                      s3 = boto3.resource('s3')
-                      bucket = s3.Bucket(bucket)
-                      for obj in bucket.objects.filter():
-                          s3.Object(bucket.name, obj.key).delete()
-
-                  sendResponseCfn(event, context, "SUCCESS")
-              except Exception as e:
-                  print(e)
-                  sendResponseCfn(event, context, "FAILED")
-
-          def sendResponseCfn(event, context, responseStatus):
-              response_body = {
-                                'Status': responseStatus,
-                                'Reason': 'Log stream name: ' + context.log_stream_name,
-                                'PhysicalResourceId': context.log_stream_name,
-                                'StackId': event['StackId'],
-                                'RequestId': event['RequestId'],
-                                'LogicalResourceId': event['LogicalResourceId'],
-                                'Data': json.loads("{}")
-                              }
-
-              http = urllib3.PoolManager()
-              http.request('PUT',
-                  event['ResponseURL'],
-                  body = json.dumps(response_body),
-                  headers = {'Content-Type': 'application/json'},
-                  retries = False
-              )
-      
-  CleanupBucketOnDeleteLambdaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub lambda-${ProjectPrefix}-CleanupBucket-exec-role
-      Description: !Sub Execution role to allow Lambda function to empty the artifact bucket
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-            - lambda.amazonaws.com
-          Action: sts:AssumeRole
-      Path: /
-      Policies:
-      - PolicyName: !Sub ${LambdaCleanupOnDeleteFunctionName}-policy
-        PolicyDocument:
-          Version: 2012-10-17
-          Statement:
-          - Effect: Allow
-            Action:
-            - s3:ListBucket
-            - s3:DeleteObject
-            Resource:
-            - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}
-            - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}/*
-          - Effect: Allow
-            Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-            Resource:
-            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${LambdaCleanupOnDeleteFunctionName}
-            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${LambdaCleanupOnDeleteFunctionName}:*
 
   CloudWatchSourceEventRole:
     Type: AWS::IAM::Role
@@ -247,10 +197,15 @@ Resources:
             Action:
             - s3:PutObject
             - s3:GetObject
-            - s3:GetObjectVersion
             Resource:
             - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}
             - !Sub arn:aws:s3:::${CodePipelineArtifactsS3Bucket}/*
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            Resource:
+            - !Sub arn:aws:s3:::${CodeBuildTestEnvFileS3Bucket}
+            - !Sub arn:aws:s3:::${CodeBuildTestEnvFileS3Bucket}/*
           - Effect: Allow
             Action:
             - logs:CreateLogGroup

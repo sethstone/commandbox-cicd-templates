@@ -7,7 +7,7 @@ ENV BOX_SERVER_APP_CFENGINE=lucee@5.3.9.141
 # Delete all existing files in App directory
 RUN cd ${APP_DIR} && rm -rf ..?* .[!.]* *
 
-# No need to set BOX_INSTALL in the environment; we explcitly `box install` dependencies here to ensure
+# No need to set BOX_INSTALL in the environment; we explicitly `box install` dependencies here to ensure
 # dev dependencies are skipped. 
 COPY ./box.jso[n] ${APP_DIR}
 RUN box install --production
@@ -51,6 +51,9 @@ COPY --from=workbench /usr/local/lib/CommandBox/lib/runwar-*.jar /usr/local/lib/
 # Create conventional CommandBox cfml/system/config directory and copy in default urlrewite.xml file 
 RUN mkdir -p /usr/local/lib/CommandBox/cfml/system/config
 COPY --from=workbench /usr/local/lib/CommandBox/cfml/system/config/urlrewrite.xml /usr/local/lib/CommandBox/cfml/system/config
+
+# Healthcheck is not carried over from previous stage, so we must re-create it here
+HEALTHCHECK --interval=20s --timeout=30s --retries=15 CMD curl --fail "http://127.0.0.1:8080/" || exit 1
 
 # Copy finalized startup script and set as the container default command (will execute runwar directly).
 COPY --from=workbench /usr/local/bin/startup-final.sh /usr/local/bin/run.sh
