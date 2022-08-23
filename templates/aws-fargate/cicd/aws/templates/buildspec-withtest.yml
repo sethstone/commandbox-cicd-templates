@@ -42,7 +42,7 @@ phases:
       - test -d "testbox" || box install testbox
       - touch emptyfile
       - >
-        docker run -d --name codebuild_${ECR_REPO_NAME} --env-file=test.env -p 8080:8080
+        docker run -d --name codebuild_${ECR_REPO_NAME} --env-file=build-testing.env -p 8080:8080
         -v $(pwd)/testbox:/app/testbox
         -v $(pwd)/tests:/app/tests
         -v $(pwd)/emptyfile:/usr/local/lib/serverHome/.predicateFile.txt

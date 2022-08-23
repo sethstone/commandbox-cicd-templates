@@ -87,10 +87,14 @@ component {
     required string projectPrefix
   ) {
     var cicdDirectory = projectDirectory & 'cicd';
-    var dockerCompose = projectDirectory & 'docker-compose.yml';
+    var dockerComposeFile = projectDirectory & 'docker-compose.yml';
+    var envExampleFile = projectDirectory & '.env.example';
 
-    // Generate /cicd folder, docker-compose.yml
-    if ( !DirectoryExists(cicdDirectory) ) {
+    var firstRun = !DirectoryExists(cicdDirectory);
+
+    // FIRST RUN
+    if ( firstRun ) {
+      // Generate /cicd folder
       DirectoryCopy( settings.templatePath & 'cicd', cicdDirectory, true );
       this.command( 'tokenReplace' )
         .params( 
@@ -105,28 +109,37 @@ component {
       FileSetAccessMode( cicdDirectory & '/scripts/deploy.sh', '755' );  
       FileSetAccessMode( cicdDirectory & '/scripts/undeploy.sh', '755' );  
       print.cyanLine( 'Execute permissions in #cicdDirectory#/scripts set sucessfully.' );
-    }
-    else {
-      print.boldYellowline( 'Directory #cicdDirectory# already exists, won''t re-create.' );
-    }
 
-    if ( !FileExists(dockerCompose) ) {
-      FileCopy( settings.templatePath & 'docker-compose.yml', dockerCompose );
-      print.cyanLine( 'File #dockerCompose# created.' );
+      // If present, append .env.example contents to build-testing and prod ENV files.
+      if ( FileExists( envExampleFile ) ) {
+        FileAppend( cicdDirectory & '/env/build-testing.env.tmpl', Chr(10) & FileRead( envExampleFile ) );  
+        FileAppend( cicdDirectory & '/env/prod.env.tmpl', Chr(10) & FileRead( envExampleFile ) );  
+        print.cyanLine( 'Found .env.example file in project root, will use as template for Docker image testing and production execution.' );
+      }
+
+      // Set up an example docker-compose.yml file for development use.
+      if ( !FileExists(dockerComposeFile) ) {
+        FileCopy( settings.templatePath & 'docker-compose.yml', dockerComposeFile );
+        print.cyanLine( 'File #dockerComposeFile# created. (Use with local development)' );
+      }
+      else {
+        print.boldYellowline( 'File #dockerComposeFile# already exists, won''t re-create.' );
+      }
     }
     else {
-      print.boldYellowline( 'File #dockerCompose# already exists, won''t re-create.' );
+        print.boldYellowline( 'Directory #cicdDirectory# already exists, won''t re-create.' );
     }
 
     // Output instructions for this template
     print.line();
-    print.line('SUCCESS!');
+    print.greenLine('SUCCESS!');
     print.line('To deploy this template to AWS, first configure your aws-cli with approporiate credentials and then run: ');
     print.line();
     print.line('  * Mac/Windows/Linux (Bash): <PROJECT_DIR>/cicd/scripts/deploy.sh');
     print.line('  * Windows (Powershell): <PROJECT_DIR>\cicd\scripts\deploy.ps1');
     print.line();
-    print.line('Please also be sure to have your Docker Hub credentials ready (free or paid account will work).');
+    print.line('[Docker Hub]');
+    print.line('Please have your Docker Hub credentials ready when running deploy.sh (free or paid account will work).');
     print.line();
   }
 }

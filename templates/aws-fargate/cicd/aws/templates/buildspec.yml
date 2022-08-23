@@ -33,7 +33,7 @@ phases:
       # #
       # # Test Image
       # # First, copy in the test ENV file from S3 (Note: sensitive values should be loaded via Parameter Store)
-      # - aws s3 cp s3://@@CICDTEMPLATE_PROJECT_PREFIX@@-env-build-testing/build-testing.env .
+      # - aws s3 cp s3://@@CICDTEMPLATE_PROJECT_PREFIX@@-env-build-testing/build-testing.env
       # #  
       # # Install testbox in the build environment and then mount testbox/ and tests/ into the container (since they are
       # # not part of the production image).  Also, to override the behavior of the Commandbox Server Profile=Production
@@ -42,7 +42,7 @@ phases:
       # - test -d "testbox" || box install testbox
       # - touch emptyfile
       # - >
-      #   docker run -d --name codebuild_${ECR_REPO_NAME} --env-file=test.env -p 8080:8080
+      #   docker run -d --name codebuild_${ECR_REPO_NAME} --env-file=build-testing.env -p 8080:8080
       #   -v $(pwd)/testbox:/app/testbox
       #   -v $(pwd)/tests:/app/tests
       #   -v $(pwd)/emptyfile:/usr/local/lib/serverHome/.predicateFile.txt
