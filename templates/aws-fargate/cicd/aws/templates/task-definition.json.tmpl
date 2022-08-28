@@ -20,7 +20,13 @@
                   "awslogs-region": "CICDTEMPLATE_AWS_REGION",
                   "awslogs-stream-prefix": "ecs"
                 }
-            }
+            },
+            "environmentFiles": [
+                {
+                    "value": "arn:aws:s3:::@@CICDTEMPLATE_PROJECT_PREFIX@@-env-prod/prod.env",
+                    "type": "s3"
+                }
+            ] 
         }
     ],
     "requiresCompatibilities": [

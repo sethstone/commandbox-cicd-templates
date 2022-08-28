@@ -213,7 +213,7 @@ Resources:
           Action: sts:AssumeRole
       Path: /
       Policies:
-      - PolicyName: !Sub ${LambdaCleanupBucketLambdaName}-ecs-policy
+      - PolicyName: !Sub ${LambdaCleanupBucketLambdaName}-policy
         PolicyDocument:
           Version: 2012-10-17
           Statement:
@@ -371,8 +371,8 @@ Resources:
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ecstasks-${ProjectPrefix}-${AWS::Region}-exec-role
-      Description: !Sub IAM role applied to containers running in the ${ProjectPrefix}-service service.
+      RoleName: !Sub ecs-${ProjectPrefix}-${AWS::Region}-taskexec-role
+      Description: !Sub IAM role used to launch tasks into the ${ProjectPrefix}-service service.
       AssumeRolePolicyDocument:
         Statement:
         - Effect: Allow
@@ -400,6 +400,11 @@ Resources:
             - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}
             - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}/*
 
+  #*********************************************************************************************************************
+  # This TaskDefinition resource is required to create the ECSService resource; however with the current structure of
+  # this template the task definition will be overridden by the version in cicd/aws/templates/task-definiition.json.tmpl
+  # whenever a deployment is run. Any changes should be made to that file rather than here.
+  #*********************************************************************************************************************
   TaskDefinition: 
     Type: AWS::ECS::TaskDefinition
     Properties: 
