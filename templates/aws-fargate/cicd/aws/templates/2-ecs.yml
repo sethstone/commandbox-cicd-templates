@@ -395,10 +395,14 @@ Resources:
             - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/*
           - Effect: Allow
             Action:
-            - s3:GetObject
+            - s3:GetBucketLocation
             Resource:
             - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}
-            - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}/*
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            Resource:
+            - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}/prod.env
 
   #*********************************************************************************************************************
   # This TaskDefinition resource is required to create the ECSService resource; however with the current structure of
