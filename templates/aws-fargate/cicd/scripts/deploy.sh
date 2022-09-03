@@ -18,7 +18,7 @@ fi
 aws cloudformation deploy --stack-name ${prefix}-network --template-file cicd/aws/templates/1-network.yml
 aws cloudformation deploy --stack-name ${prefix}-ecs --template-file cicd/aws/templates/2-ecs.yml --capabilities CAPABILITY_NAMED_IAM
 # The ECS service is built with a desired count of 0 to allow stack creation to succeed prior to the ECR repo being
-# populated.  Here we set the service to a desired count of 2 and update the template for future runs.
+# populated.  Here we set the service to a desired count of 2.
 aws ecs update-service --cluster ${prefix}-ecs-fargate-cluster --service ${prefix}-service --desired-count 2 > /dev/null
 aws cloudformation deploy --stack-name ${prefix}-pipeline --template-file cicd/aws/templates/3-pipeline.yml --capabilities CAPABILITY_NAMED_IAM
 
@@ -26,22 +26,31 @@ aws cloudformation deploy --stack-name ${prefix}-pipeline --template-file cicd/a
 # UPLOAD TEMPLATE ENV FILES TO S3
 ########################################################################################################################
 if [ -f cicd/env/build-testing.env.tmpl ]; then
-   aws s3 cp cicd/env/build-testing.env.tmpl s3://${prefix}-env-build-testing/build-testing.env
+    aws s3api head-object --bucket ${prefix}-env-build-testing --key build-testing.env >/dev/null 2>&1
+    # Only upload an ENV template if the file does not already exist in S3
+    if [ $? -ne 0 ]; then 
+        aws s3 cp cicd/env/build-testing.env.tmpl s3://${prefix}-env-build-testing/build-testing.env
+    fi
 fi
 if [ -f cicd/env/prod.env.tmpl ]; then
-    aws s3 cp cicd/env/prod.env.tmpl s3://${prefix}-env-prod/prod.env
+    aws s3api head-object --bucket ${prefix}-env-prod --key prod.env >/dev/null 2>&1
+    # Only upload an ENV template if the file does not already exist in S3
+    if [ $? -ne 0 ]; then 
+        aws s3 cp cicd/env/prod.env.tmpl s3://${prefix}-env-prod/prod.env
+    fi
 fi
 
 ########################################################################################################################
 # CREATE SYSTEMS MANAGER PARAMETERS
 ########################################################################################################################
 # As of 3/18/22 CloudFormation doesn't support creating SecureString parameters with the CLI.
-echo 
-echo "Pulling images from DockerHub is severely rate-limited when done anonymously."
-echo "To allow CodeBuild to pull images from DockerHub we need a set of login credentials.  (Free account is acceptable)."
-echo "These credentials will be stored encrypted in AWS SSM Parameter Store using your account's AWS-managed key (AWS KMS)."
 aws ssm describe-parameters --filters "Key=Name,Values=${prefix}-DOCKERHUB_USERNAME" | grep -q ${prefix}-DOCKERHUB_USERNAME
 if [ $? -eq 1 ]; then 
+    echo 
+    echo "Note: Pulling images from DockerHub is severely rate-limited when done anonymously."
+    echo "To allow CodeBuild to pull images from DockerHub we need a set of login credentials.  (Free account is acceptable)."
+    echo "These credentials will be stored encrypted in AWS SSM Parameter Store using your account's AWS-managed key (AWS KMS)."
+    echo 
     read -p "Please provide the Docker Username: " USERINPUT_DOCKERHUB_USERNAME
     aws ssm put-parameter --name "${prefix}-DOCKERHUB_USERNAME" --value "${USERINPUT_DOCKERHUB_USERNAME}" --type "SecureString"
 fi
@@ -49,9 +58,9 @@ aws ssm describe-parameters --filters "Key=Name,Values=${prefix}-DOCKERHUB_PASSW
 if [ $? -eq 1 ]; then 
     read -s -p "Please provide the Docker Password (input hidden): " USERINPUT_DOCKERHUB_PASSWORD
     aws ssm put-parameter --name "${prefix}-DOCKERHUB_PASSWORD" --value "${USERINPUT_DOCKERHUB_PASSWORD}" --type "SecureString"
+    echo 
+    echo "Note: If you need to change the password later you can do so from the AWS Systems Manager service console."
 fi
-echo 
-echo "Note: If you need to change the password later you can do so from the AWS Systems Manager service console."
 
 ########################################################################################################################
 # USER INSTRUCTIONS

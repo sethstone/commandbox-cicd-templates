@@ -403,10 +403,38 @@ Resources:
             - s3:GetObject
             Resource:
             - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}/prod.env
+  
+  #*********************************************************************************************************************
+  # The Task Role is used by the running container and the Deny/s3:GetBucketLocation Statement is just a placeholder;
+  # You should modify this to match the needs of your application.
+  #*********************************************************************************************************************
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ecs-${ProjectPrefix}-${AWS::Region}-task-role
+      Description: !Sub IAM role used by running task to access other AWS resources
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+              - ecs-tasks.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: task-permissions-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Deny
+            Action:
+            - s3:GetBucketLocation
+            Resource:
+            - !Sub arn:aws:s3:::${TaskExecEnvFileS3Bucket}
 
   #*********************************************************************************************************************
-  # This TaskDefinition resource is required to create the ECSService resource; however with the current structure of
-  # this template the task definition will be overridden by the version in cicd/aws/templates/task-definiition.json.tmpl
+  # This TaskDefinition resource is required to create the ECS Service; however with the current structure of this
+  # template the task definition will be overridden by the version in cicd/aws/templates/task-definiition.json.tmpl
   # whenever a deployment is run. Any changes should be made to that file rather than here.
   #*********************************************************************************************************************
   TaskDefinition: 
@@ -504,6 +532,11 @@ Outputs:
     Value: !GetAtt ECSTaskExecutionRole.Arn
     Export:
       Name: !Sub ${AWS::StackName}:TaskExecutionRole
+  TaskRole:
+    Description: The ARN of the Task Role
+    Value: !GetAtt ECSTaskRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}:TaskRole
   ServiceName:
     Description: The name of the ECS service
     Value: !GetAtt ECSService.Name

@@ -67,8 +67,9 @@ phases:
       - echo Create deploy stage artifacts...
       - printf '{"ImageURI":"%s"}' ${REPOSITORY_URI}:${IMAGE_TAG} > imageDetail.json
       - cp cicd/aws/templates/task-definition.json.tmpl task-definition.json
-      - sed -i "s|CICDTEMPLATE_TASK_EXECUTION_ROLE_ARN|${TASKEXEC_ROLE}|g" task-definition.json
       - sed -i "s|CICDTEMPLATE_AWS_REGION|${AWS_REGION}|g" task-definition.json
+      - sed -i "s|CICDTEMPLATE_TASK_EXECUTION_ROLE_ARN|${TASKEXEC_ROLE}|g" task-definition.json
+      - sed -i "s|CICDTEMPLATE_TASK_ROLE_ARN|${TASK_ROLE}|g" task-definition.json
       - cp cicd/aws/templates/appspec.yml appspec.yml
 artifacts:
   files:

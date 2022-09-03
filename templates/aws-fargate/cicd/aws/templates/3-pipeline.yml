@@ -244,6 +244,9 @@ Resources:
         - Name: TASKEXEC_ROLE
           Value: 
             Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:TaskExecutionRole
+        - Name: TASK_ROLE
+          Value: 
+            Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:TaskRole
       Name: !Ref CodeBuildProjectName
       ServiceRole: !Ref CodeBuildServiceRole
       Source:
