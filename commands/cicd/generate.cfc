@@ -90,7 +90,7 @@ component {
     var dockerComposeFile = projectDirectory & 'docker-compose.yml';
     var envExampleFile = projectDirectory & '.env.example';
 
-    var firstRun = !DirectoryExists(cicdDirectory);
+    var firstRun = !DirectoryExists( cicdDirectory );
 
     // FIRST RUN
     if ( firstRun ) {
@@ -118,7 +118,7 @@ component {
       }
 
       // Set up an example docker-compose.yml file for development use.
-      if ( !FileExists(dockerComposeFile) ) {
+      if ( !FileExists( dockerComposeFile ) ) {
         FileCopy( settings.templatePath & 'docker-compose.yml', dockerComposeFile );
         print.cyanLine( 'File #dockerComposeFile# created. (Use with local development)' );
       }
@@ -132,14 +132,14 @@ component {
 
     // Output instructions for this template
     print.line();
-    print.greenLine('SUCCESS!');
-    print.line('To deploy this template to AWS, first configure your aws-cli with approporiate credentials and then run: ');
+    print.greenLine( 'SUCCESS!' );
+    print.line( 'To deploy this template to AWS, first configure your aws-cli with approporiate credentials and then run: ' );
     print.line();
-    print.line('  * Mac/Windows/Linux (Bash): <PROJECT_DIR>/cicd/scripts/deploy.sh');
-    print.line('  * Windows (Powershell): <PROJECT_DIR>\cicd\scripts\deploy.ps1');
+    print.line( '  * Mac/Windows/Linux (Bash): <PROJECT_DIR>/cicd/scripts/deploy.sh' );
+    print.line( '  * Windows (Powershell): <PROJECT_DIR>\cicd\scripts\deploy.ps1' );
     print.line();
-    print.line('[Docker Hub]');
-    print.line('Please have your Docker Hub credentials ready when running deploy.sh (free or paid account will work).');
+    print.line( '[Docker Hub]' );
+    print.line( 'Please have your Docker Hub credentials ready when running deploy.sh (free or paid account will work).' );
     print.line();
   }
 }

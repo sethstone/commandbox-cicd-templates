@@ -2,7 +2,7 @@ FROM ortussolutions/commandbox as workbench
 
 # These will override configuration set in server.json
 ENV BOX_SERVER_PROFILE=production
-ENV BOX_SERVER_APP_CFENGINE=lucee@5.3.9.141
+ENV BOX_SERVER_APP_CFENGINE=lucee@5.3.9.160
 
 # Delete all existing files in App directory
 RUN cd ${APP_DIR} && rm -rf ..?* .[!.]* *

@@ -1,0 +1,80 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      java: openjdk11
+    commands:
+      # Check that we have tests available in the project
+      - SKIP_IMAGE_TESTING=$(test -f "tests/runner.cfm"; echo $?)
+      - echo "SKIP_IMAGE_TESTING = ${SKIP_IMAGE_TESTING}"
+      - |
+        if [ ${SKIP_IMAGE_TESTING} -eq 0 ]; then 
+          # Get Commandbox
+          curl -fsSL https://downloads.ortussolutions.com/debs/gpg | gpg --dearmor -o /usr/share/keyrings/ortus-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/ortus-keyring.gpg] https://downloads.ortussolutions.com/debs/noarch /" | tee -a /etc/apt/sources.list.d/commandbox.list
+          apt-get update && apt-get --assume-yes install apt-transport-https commandbox
+          box version
+        fi
+  pre_build:
+    commands:
+      - docker --version
+      - aws --version
+      # Login to Amazon ECR
+      - aws ecr get-login-password | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+      - REPOSITORY_URI=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+  build:
+    commands:
+      # Normally a non-zero return code will cause the build phase to fail, but it doesn't work correctly inside a multi-line
+      # if-block. So we manually capture the failure inside the block and use it as an exit code outside the block.
+      # See also: https://stackoverflow.com/questions/70322211/why-multiple-line-shell-code-doesnt-fail-the-bulid-in-codebuild-project
+      - IMAGE_TESTING_EXITCODE=0
+      # Test Image
+      - |
+        if [ ${SKIP_IMAGE_TESTING} -eq 0 ]; then 
+          # Copy in the test ENV file from S3 (Note: sensitive values should be loaded via Parameter Store)
+          aws s3 cp s3://@@CICDTEMPLATE_PROJECT_PREFIX@@-env-build-testing/build-testing.env .
+
+          # Install testbox in the build environment and then mount testbox/ and tests/ into the container (since they are
+          # not part of the production image).  Also, to override the behavior of the Commandbox Server Profile=Production
+          # we mount an empty ".predicateFile.txt" into the server home directory to disable the restrictions on certain
+          # sensitive web paths so we can test the application inside the container.
+          test -d "testbox" || box install testbox
+          touch emptyfile
+          docker run -d --name codebuild_${ECR_REPO_NAME} --env-file=build-testing.env -p 8080:8080 \
+          -v $(pwd)/testbox:/app/testbox \
+          -v $(pwd)/tests:/app/tests \
+          -v $(pwd)/emptyfile:/usr/local/lib/serverHome/.predicateFile.txt \
+          $REPOSITORY_URI:$IMAGE_TAG
+
+          # Wait for container to become healthy and execute tests in conventional location.
+          echo Waiting for container healthy status started on $(date)
+          export DOCKER_INSPECT_CMD="docker inspect --format {{.State.Health.Status}} codebuild_${ECR_REPO_NAME}"
+          timeout 60 bash -c 'until [[ "$(${DOCKER_INSPECT_CMD})" == "healthy" ]]; do echo -n .; sleep 3; done'
+          echo Waiting for container healthy status completed on $(date)
+
+          # Run tests
+          echo Running tests started on $(date)
+          box testbox run runner="http://localhost:8080/tests/runner.cfm?method=runRemote" 
+          IMAGE_TESTING_EXITCODE=$?
+          echo Running tests completed on $(date)
+        fi
+      - exit ${IMAGE_TESTING_EXITCODE}
+  post_build:
+    commands:
+      # Execute this section only if build phase succeeded
+      - test ${CODEBUILD_BUILD_SUCCEEDING} -eq 1
+      # Create output artifacts for next stage
+      - echo Create deploy stage artifacts...
+      - printf '{"ImageURI":"%s"}' ${REPOSITORY_URI}:${IMAGE_TAG} > imageDetail.json
+      - cp cicd/aws/templates/task-definition.json.tmpl task-definition.json
+      - sed -i "s|CICDTEMPLATE_AWS_REGION|${AWS_REGION}|g" task-definition.json
+      - sed -i "s|CICDTEMPLATE_TASK_EXECUTION_ROLE_ARN|${TASKEXEC_ROLE}|g" task-definition.json
+      - sed -i "s|CICDTEMPLATE_TASK_ROLE_ARN|${TASK_ROLE}|g" task-definition.json
+      - cp cicd/aws/templates/appspec.yml appspec.yml
+artifacts:
+  files:
+    - imageDetail.json
+    - task-definition.json
+    - appspec.yml

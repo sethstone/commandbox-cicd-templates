@@ -16,7 +16,12 @@ Parameters:
   CodeBuildProjectName:
     Description: Name of the CodeBuild project that builds the Docker image
     Type: String
-    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-image
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-buildimage
+
+  CodeBuildTestingProjectName:
+    Description: Name of the CodeBuild project that tests the Docker image
+    Type: String
+    Default: @@CICDTEMPLATE_PROJECT_PREFIX@@-testimage
 
   CodeDeployApplicationName:
     Description: Name of the CodeDeploy application
@@ -214,6 +219,8 @@ Resources:
             Resource:
             - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CodeBuildProjectName}
             - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CodeBuildProjectName}:*
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CodeBuildTestingProjectName}
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${CodeBuildTestingProjectName}:*
           - Effect: Allow
             Action:
             - ssm:GetParameters
@@ -225,7 +232,35 @@ Resources:
     DependsOn:
     - CodeBuildServiceRole
     Properties:
-      Description: !Sub CodeBuild project for ${ProjectPrefix} image build
+      Description: !Sub CodeBuild project for ${ProjectPrefix} image building
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:3.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+        EnvironmentVariables:
+        - Name: AWS_ACCOUNT_ID
+          Value: !Ref AWS::AccountId
+        - Name: AWS_REGION
+          Value: !Ref AWS::Region
+        - Name: ECR_REPO_NAME
+          Value:
+            Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:ECRRepoName
+      Name: !Ref CodeBuildProjectName
+      ServiceRole: !Ref CodeBuildServiceRole
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: cicd/aws/templates/buildspec-buildimage.yml
+      SourceVersion: master
+
+  CodeBuildTestingProject:
+    Type: AWS::CodeBuild::Project
+    DependsOn:
+    - CodeBuildServiceRole
+    Properties:
+      Description: !Sub CodeBuild project for ${ProjectPrefix} image testing
       Artifacts:
         Type: CODEPIPELINE
       Environment:
@@ -247,13 +282,13 @@ Resources:
         - Name: TASK_ROLE
           Value: 
             Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:TaskRole
-      Name: !Ref CodeBuildProjectName
+      Name: !Ref CodeBuildTestingProjectName
       ServiceRole: !Ref CodeBuildServiceRole
       Source:
         Type: CODEPIPELINE
-        BuildSpec: cicd/aws/templates/buildspec.yml
+        BuildSpec: cicd/aws/templates/buildspec-testimage.yml
       SourceVersion: master
- 
+
   CodeDeployServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -320,6 +355,12 @@ Resources:
             Resource: !GetAtt CodeBuildProject.Arn
           - Effect: Allow
             Action:
+            - codebuild:StartBuild
+            - codebuild:BatchGetBuilds
+            - codebuild:StopBuild
+            Resource: !GetAtt CodeBuildTestingProject.Arn
+          - Effect: Allow
+            Action:
             - codedeploy:GetApplication
             - codedeploy:GetApplicationRevision
             - codedeploy:RegisterApplicationRevision
@@ -343,6 +384,11 @@ Resources:
             - iam:PassRole
             Resource:
             - Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:TaskExecutionRole
+          - Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource:
+            - Fn::ImportValue: !Sub ${ProjectPrefix}-ecs:TaskRole
 
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -364,11 +410,11 @@ Resources:
             Owner: AWS
             Provider: CodeCommit
             Version: 1
+          Name: ApplicationSource
           Configuration:
             BranchName: master
             PollForSourceChanges: false
             RepositoryName: !GetAtt CodeCommitRepo.Name
-          Name: ApplicationSource
           OutputArtifacts:
           - Name: !Sub ${ProjectPrefix}-SourceArtifact
           RunOrder: 1
@@ -379,11 +425,24 @@ Resources:
             Owner: AWS
             Provider: CodeBuild
             Version: 1
+          Name: BuildImage
           Configuration:
             ProjectName: !Ref CodeBuildProjectName
           InputArtifacts:
           - Name: !Sub ${ProjectPrefix}-SourceArtifact
-          Name: BuildImage
+          RunOrder: 1
+      - Name: Test
+        Actions:
+        - ActionTypeId:
+            Category: Build
+            Owner: AWS
+            Provider: CodeBuild
+            Version: 1
+          Name: TestImage
+          Configuration:
+            ProjectName: !Ref CodeBuildTestingProjectName
+          InputArtifacts:
+          - Name: !Sub ${ProjectPrefix}-SourceArtifact
           OutputArtifacts:
           - Name: !Sub ${ProjectPrefix}-BuildArtifact
           RunOrder: 1
@@ -395,6 +454,7 @@ Resources:
             Owner: AWS
             Provider: CodeDeployToECS
             Version: 1
+          Name: ECS-BlueGreenDeploy
           Configuration:
             ApplicationName: !Ref CodeDeployApplication
             DeploymentGroupName: !Ref CodeDeployDeploymentGroupName
@@ -406,7 +466,6 @@ Resources:
             Image1ContainerName: IMAGE1_NAME
           InputArtifacts:
           - Name: !Sub ${ProjectPrefix}-BuildArtifact
-          Name: ECS-BlueGreenDeploy
           RunOrder: 1
 
   DeploymentGroup:
