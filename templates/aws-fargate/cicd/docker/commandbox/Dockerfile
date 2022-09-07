@@ -24,7 +24,8 @@ RUN FINALIZE_STARTUP=true ${BUILD_DIR}/run.sh
 
 # Copy application source files
 COPY . ${APP_DIR}
-# No server.json, CFConfig, or dotenv code will be processed since we generated a finalized startup script.
+# Remove server.json, CFConfig, and dotenv files since we generated a finalized startup script.
+# Note: other unnecessary files from source should be added to Dockerfile.dockerignore.
 RUN rm -f .env .cfconfig.json server.json box.json
 
 
@@ -37,9 +38,6 @@ FROM eclipse-temurin:11-jre-focal as app
 
 # Copy application source files (including dependencies)
 COPY --from=workbench /app /app
-# But remove server.json, CFConfig, or dotenv files since we generated a finalization script.
-# Note: Other unnecessary files from source should be added to .dockerignore.
-RUN cd /app && rm -f .env .cfconfig.json server.json box.json
 
 # Copy expanded WAR
 COPY --from=workbench /usr/local/lib/serverHome /usr/local/lib/serverHome
