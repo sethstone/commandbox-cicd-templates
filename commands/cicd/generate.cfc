@@ -114,6 +114,16 @@ component {
       if ( FileExists( envExampleFile ) ) {
         FileAppend( cicdDirectory & '/env/build-testing.env.tmpl', Chr(10) & FileRead( envExampleFile ) );  
         FileAppend( cicdDirectory & '/env/prod.env.tmpl', Chr(10) & FileRead( envExampleFile ) );  
+        // Don't let certain ENV vars slip through
+        this.command( 'tokenReplace' )
+          .params( 
+            path = cicdDirectory & '/env/prod.env.tmpl',
+            token = 'ENVIRONMENT=development',
+            replacement = 'ENVIRONMENT=production'
+          )
+          .inWorkingDirectory( cicdDirectory )
+          .run()
+        ;
         print.cyanLine( 'Found .env.example file in project root, will use as template for Docker image testing and production execution.' );
       }
 

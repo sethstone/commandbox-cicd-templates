@@ -7,12 +7,14 @@ phases:
     commands:
       # Check that we have tests available in the project
       - SKIP_IMAGE_TESTING=$(test -f "tests/runner.cfm"; echo $?)
-      - echo "SKIP_IMAGE_TESTING = ${SKIP_IMAGE_TESTING}"
       - |
         if [ ${SKIP_IMAGE_TESTING} -eq 0 ]; then 
           # Get Commandbox
-          curl -fsSL https://downloads.ortussolutions.com/debs/gpg | gpg --dearmor -o /usr/share/keyrings/ortus-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/ortus-keyring.gpg] https://downloads.ortussolutions.com/debs/noarch /" | tee -a /etc/apt/sources.list.d/commandbox.list
+          #curl -fsSL https://downloads.ortussolutions.com/debs/gpg | gpg --dearmor -o /usr/share/keyrings/ortus-keyring.gpg
+          #echo "deb [signed-by=/usr/share/keyrings/ortus-keyring.gpg] https://downloads.ortussolutions.com/debs/noarch /" >> /etc/apt/sources.list.d/commandbox.list
+          # The apt-key command is deprecated, but doing it the "new" way as shown above does not work consistently.
+          curl -fsSL https://downloads.ortussolutions.com/debs/gpg | apt-key add -
+          echo "deb https://downloads.ortussolutions.com/debs/noarch /" >> /etc/apt/sources.list.d/commandbox.list
           apt-get update && apt-get --assume-yes install apt-transport-https commandbox
           box version
         fi

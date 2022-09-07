@@ -2,7 +2,7 @@ FROM ortussolutions/commandbox as workbench
 
 # These will override configuration set in server.json
 ENV BOX_SERVER_PROFILE=production
-ENV BOX_SERVER_APP_CFENGINE=lucee@5.3.9.160
+ENV BOX_SERVER_APP_CFENGINE=lucee@5.3.9.162
 
 # Delete all existing files in App directory
 RUN cd ${APP_DIR} && rm -rf ..?* .[!.]* *
@@ -24,7 +24,7 @@ RUN FINALIZE_STARTUP=true ${BUILD_DIR}/run.sh
 
 # Copy application source files
 COPY . ${APP_DIR}
-# No server.json, CFConfig, or dotenv code will be processed since we generated a finalization script.
+# No server.json, CFConfig, or dotenv code will be processed since we generated a finalized startup script.
 RUN rm -f .env .cfconfig.json server.json box.json
 
 
